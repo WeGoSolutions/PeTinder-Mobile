@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, TextInput, Text, StyleSheet, Animated } from 'react-native';
 
-const FloatingLabelInput = ({ label, value, onChangeText, secureTextEntry, keyboardType, autoCapitalize, error }) => {
+const Input = ({ label, value, onChangeText, secureTextEntry, keyboardType, autoCapitalize, error }) => {
   const [isFocused, setIsFocused] = useState(false);
   const animatedValue = useRef(new Animated.Value(value ? 1 : 0)).current;
 
@@ -70,4 +70,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default FloatingLabelInput;
+export default Input;

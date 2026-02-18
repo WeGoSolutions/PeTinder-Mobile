@@ -1,48 +1,8 @@
 import React from 'react';
-import { View, StyleSheet, Modal, TouchableOpacity, Text, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-const ActionSheet = ({ children, isModal = false, visible = true, onClose, title, showBackButton = false, onBack, showCloseButton = false }) => {
-  if (isModal) {
-    return (
-      <Modal
-        transparent={true}
-        visible={visible}
-        animationType="fade"
-        onRequestClose={onClose}
-        style={styles.modal}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={{ flex: 1 }}
-        >
-          <TouchableOpacity 
-            style={styles.modalOverlay} 
-            activeOpacity={1} 
-            onPress={onClose}
-          >
-            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-              <View style={styles.modalContainer}>
-                {showBackButton && (
-                  <TouchableOpacity style={styles.backButton} onPress={onBack}>
-                    <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-                  </TouchableOpacity>
-                )}
-                {showCloseButton && (
-                  <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-                    <Ionicons name="close" size={28} color="#FFFFFF" />
-                  </TouchableOpacity>
-                )}
-                {title && <Text style={styles.title}>{title}</Text>}
-                {children}
-              </View>
-            </TouchableWithoutFeedback>
-          </TouchableOpacity>
-        </KeyboardAvoidingView>
-      </Modal>
-    );
-  }
-
+const BottomSheet = ({ children, title, showBackButton = false, onBack }) => {
   return (
     <View style={styles.actionSheetContainer}>
       {showBackButton && (
@@ -67,36 +27,7 @@ const styles = StyleSheet.create({
     paddingBottom: 30,
     width: '100%',
     overflow: 'hidden',
-  },
-
-  closeButton: {
-    position: 'absolute',
-    top: 20,
-    left: 15,
-    zIndex: 20,
-    padding: 10,
-  },
-
-  modal: {
-    width: '100%', 
-  },
-
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalContainer: {
-    backgroundColor: '#1A1A1A',
-    borderRadius: 30,
-    paddingHorizontal: 20,
-    paddingVertical: 30,
-    zIndex: 10,
-    width: '90%',
-    minWidth: 370,
-    overflow: 'hidden',
+    // Removido position: absolute para permitir que suba com o teclado
   },
   backButton: {
     position: 'absolute',
@@ -114,4 +45,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ActionSheet;
+export default BottomSheet;
