@@ -1,19 +1,22 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { NavBar } from '../components/PeTinder/NavBar';
 
-const PeTinderScreen = () => {
+const PeTinderScreen = ({ navigation }) => {
+
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.text}>PeTinder</Text>
+    <View style={styles.root}>
+      <NavBar navigation={navigation} />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
     backgroundColor: '#1A1A1A',
-    justifyContent: 'center',
+    // justifyContent: 'center',
     alignItems: 'center',
   },
   text: {

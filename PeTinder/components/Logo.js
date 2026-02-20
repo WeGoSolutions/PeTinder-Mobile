@@ -12,14 +12,14 @@ export const Logo = () => {
     );
 }
 
-export const LogoWithText = () => {
+export const LogoWithText = ({ fontSize = 28, iconSize = 45 }) => {
     return (
         <View style={styles.container}>
             <Image 
                 source={require('../assets/Logo.png')} 
-                style={styles.image} 
+                style={[styles.image, { width: iconSize, height: iconSize }]}
             />
-            <Text style={styles.text}>
+            <Text style={[styles.text, { fontSize }]}>
                 PeTinder
             </Text>
         </View>
@@ -32,12 +32,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     image: {
-        width: 45,
-        height: 46,
         marginRight: 8,
     },
     text: {
-        fontSize: 28,
         fontFamily: 'Poppins_700Bold',
         color: '#1A1A1A',
     },

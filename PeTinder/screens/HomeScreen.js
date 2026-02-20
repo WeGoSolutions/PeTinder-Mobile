@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -18,9 +18,8 @@ import Input from "../components/Input";
 import Button from "../components/Button";
 import CodeInput from "../components/CodeInput";
 import Toast from "../components/Toast";
-import PeTinderScreen from "./PeTinderScreen";
 
-const HomeScreen = () => {
+const HomeScreen = ({ navigation }) => {
   const [showLogin, setShowLogin] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetPasswordSteps, setResetPasswordSteps] = useState(0);
@@ -29,7 +28,6 @@ const HomeScreen = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isCodeLoading, setIsCodeLoading] = useState(false);
   const [errors, setErrors] = useState({ email: false, password: false });
   const [errorMessage, setErrorMessage] = useState("");
@@ -105,7 +103,7 @@ const HomeScreen = () => {
     // Simula um request de 3 segundos
     setTimeout(() => {
       setIsLoading(false);
-      setIsLoggedIn(true);
+      navigation.replace("PeTinder");
     }, 3000);
   };
 
@@ -130,11 +128,6 @@ const HomeScreen = () => {
 
     setTimeout(() => setShowLogin(toLogin), 150);
   };
-
-  // Renderiza o PeTinder quando logado
-  if (isLoggedIn) {
-    return <PeTinderScreen />;
-  }
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
