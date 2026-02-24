@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, TextInput, Text, StyleSheet, Animated, Pressable, Platform } from 'react-native';
+import { View, TextInput, Text, StyleSheet, Animated, Pressable, Platform, TouchableOpacity } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
@@ -32,6 +32,7 @@ const formatDate = (value) => {
 
 const Input = ({
   label,
+  labelColor,
   value,
   onChangeText,
   secureTextEntry,
@@ -50,15 +51,15 @@ const Input = ({
   const isDate = variant === 'date';
   const isReadOnly = readOnly || disabled;
   const displayValue = isDate ? formatDate(dateValue) : value;
-  const animatedValue = useRef(new Animated.Value(displayValue ? 1 : 0)).current;
+  const animatedValue = useRef(new Animated.Value(isDate || displayValue ? 1 : 0)).current;
 
   useEffect(() => {
     Animated.timing(animatedValue, {
-      toValue: isFocused || displayValue ? 1 : 0,
+      toValue: isDate || isFocused || displayValue ? 1 : 0,
       duration: 200,
       useNativeDriver: false,
     }).start();
-  }, [isFocused, displayValue]);
+  }, [isDate, isFocused, displayValue]);
 
   const labelStyle = {
     position: 'absolute',
@@ -79,7 +80,7 @@ const Input = ({
 
   return (
     <View style={styles.container}>
-      <Animated.Text style={[styles.label, labelStyle]}>
+      <Animated.Text style={[styles.label, labelStyle, labelColor ? { color: labelColor } : null]}>
         {label}
       </Animated.Text>
       {isDate ? (
@@ -108,25 +109,42 @@ const Input = ({
             </View>
           </Pressable>
           {showPicker && !isReadOnly && (
-            <DateTimePicker
-              value={dateValue instanceof Date ? dateValue : dateValue ? new Date(dateValue) : new Date()}
-              mode="date"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={(event, selectedDate) => {
-                if (event?.type === 'dismissed') {
-                  setIsFocused(false);
-                  setShowPicker(false);
-                  return;
-                }
-                setShowPicker(Platform.OS === 'ios');
-                const nextDate = selectedDate || dateValue || new Date();
-                onDateChange?.(nextDate);
-                setIsFocused(false);
-                if (Platform.OS !== 'ios') {
-                  setShowPicker(false);
-                }
-              }}
-            />
+            <>
+              {Platform.OS === 'ios' && (
+                <View style={styles.pickerActions}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setShowPicker(false);
+                      setIsFocused(false);
+                    }}
+                  >
+                    <Text style={styles.pickerConfirmText}>Confirmar</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              <DateTimePicker
+                value={dateValue instanceof Date ? dateValue : dateValue ? new Date(dateValue) : new Date()}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                textColor="#FFFFFF"
+                themeVariant="dark"
+                accentColor="#FFC0D9"
+                onChange={(event, selectedDate) => {
+                  if (event?.type === 'dismissed') {
+                    setIsFocused(false);
+                    setShowPicker(false);
+                    return;
+                  }
+                  setShowPicker(Platform.OS === 'ios');
+                  const nextDate = selectedDate || dateValue || new Date();
+                  onDateChange?.(nextDate);
+                  if (Platform.OS !== 'ios') {
+                    setIsFocused(false);
+                    setShowPicker(false);
+                  }
+                }}
+              />
+            </>
           )}
         </>
       ) : (
@@ -190,6 +208,16 @@ const styles = StyleSheet.create({
   },
   dateIconDisabled: {
     opacity: 0.6,
+  },
+  pickerActions: {
+    marginTop: 8,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  pickerConfirmText: {
+    fontSize: 14,
+    fontFamily: 'Poppins_600SemiBold',
+    color: '#FFC0D9',
   },
 });
 
