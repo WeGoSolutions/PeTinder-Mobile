@@ -60,7 +60,7 @@ const ConfigScreen = ({ navigation }) => {
   return (
     <View style={styles.root}>
       <CustomHeader onBack={() => navigation.goBack()} title={title} />
-      <UserInfo nome={"Sabrina Carpenter"} userImageURL={"https://www.famousbirthdays.com/faces/carpenter-sabrina-image.jpg"} />
+      <UserInfo nome={"Sabrina"} />
       <ContentTabs
         tabs={tabs}
         activeTab={activeTab.label}
