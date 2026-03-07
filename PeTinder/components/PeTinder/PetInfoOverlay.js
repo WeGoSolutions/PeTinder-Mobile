@@ -117,6 +117,9 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontFamily: 'Poppins_500Medium',
+    textShadowColor: '#111',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 0.5,
   },
   actionsRight: {
     alignItems: 'center',
