@@ -1,53 +1,76 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, PanResponder } from 'react-native';
 import { NavBar } from '../components/PeTinder/NavBar';
 import PetImageCarousel from '../components/PeTinder/PetImageCarousel';
 import PetInfoOverlay from '../components/PeTinder/PetInfoOverlay';
 import PetActionButtons from '../components/PeTinder/PetActionButtons';
 import PetExpandedOverlay from '../components/PeTinder/PetExpandedOverlay';
+import NewUserOnboardingGate from '../components/PeTinder/NewUserOnboardingGate';
+import api from '../api';
+import { getAuthUserId } from '../storage/authSession';
 
 const PET_PROFILES = [
   {
-    id: 'kenny',
-    name: 'Kenny',
+    id: 'fallback-pet',
+    name: 'Pet',
     sex: 'M',
-    age: '2 Anos',
-    likes: 27,
+    age: '-',
+    likes: 0,
     liked: false,
-    images: [
-      require('../assets/kenny1.png'),
-      require('../assets/kenny2.png'),
-    ],
-    description:
-      'Kenny adora explorar cantinhos da casa e se aconchegar no colo para tirar uma soneca. Ele é um companheiro fiel, sempre pronto para brincar ou fazer companhia nos momentos de descanso.',
-    features: ['Vacinado', 'Castrado'],
-    tags: [
-      { label: 'Carinhoso', color: '#FF7DAA' },
-      { label: 'Sociável', color: '#CDE88D' },
-    ],
-  },
-  {
-    id: 'thor',
-    name: 'Thor',
-    sex: 'M',
-    age: '2 Anos',
-    likes: 27,
-    liked: false,
-    images: [
-      require('../assets/thor1.png'),
-      require('../assets/thor2.png'),
-    ],
-    description:
-      'Kenny adora explorar cantinhos da casa e se aconchegar no colo para tirar uma soneca. Ele é um companheiro fiel, sempre pronto para brincar ou fazer companhia nos momentos de descanso.',
-    features: ['Vacinado', 'Castrado'],
-    tags: [
-      { label: 'Carinhoso', color: '#FF7DAA' },
-      { label: 'Sociável', color: '#CDE88D' },
-    ],
+    images: [require('../assets/cachorro.png')],
+    description: 'Estamos preparando os perfis para você.',
+    features: ['Vacinado'],
+    tags: [{ label: 'Aguardando', color: '#CDE88D' }],
   },
 ];
 
-const PeTinderScreen = ({ navigation }) => {
+const TAG_COLORS = ['#FF7DAA', '#CDE88D', '#76D1FF', '#F3C677', '#BDA7FF'];
+
+const mapTag = (tag, index) => ({
+  label: String(tag),
+  color: TAG_COLORS[index % TAG_COLORS.length],
+});
+
+const mapImages = (imagens) => {
+  if (!Array.isArray(imagens) || !imagens.length) {
+    return [require('../assets/cachorro.png')];
+  }
+
+  return imagens
+    .filter(Boolean)
+    .map((image) => {
+      if (typeof image === 'string') {
+        if (image.startsWith('http://') || image.startsWith('https://') || image.startsWith('data:image')) {
+          return { uri: image };
+        }
+
+        return { uri: `data:image/jpeg;base64,${image}` };
+      }
+
+      return image;
+    });
+};
+
+const mapPetFromApi = (pet) => ({
+  id: pet?.id,
+  name: pet?.nome || 'Pet',
+  sex: pet?.sexo === 'FEMEA' ? 'F' : 'M',
+  age: pet?.idade ? `${Math.floor(Number(pet.idade))} Anos` : '-',
+  likes: Number(pet?.curtidas) || 0,
+  liked: false,
+  images: mapImages(pet?.imagens),
+  description: pet?.descricao || '',
+  features: [
+    pet?.isVacinado ? 'Vacinado' : null,
+    pet?.isCastrado ? 'Castrado' : null,
+    pet?.isVermifugo ? 'Vermífugo' : null,
+  ].filter(Boolean),
+  tags: Array.isArray(pet?.tags) && pet.tags.length
+    ? pet.tags.map(mapTag)
+    : [{ label: pet?.porte || 'Sem tag', color: '#CDE88D' }],
+});
+
+const PeTinderScreen = ({ navigation, route }) => {
   const [pets, setPets] = useState(PET_PROFILES);
   const [currentPetIndex, setCurrentPetIndex] = useState(0);
   const [isImageFocused, setIsImageFocused] = useState(false);
@@ -60,6 +83,39 @@ const PeTinderScreen = ({ navigation }) => {
 
   isImageFocusedRef.current = isImageFocused;
   isDetailsExpandedRef.current = isDetailsExpanded;
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadPets = async () => {
+      try {
+        const userId = await getAuthUserId();
+
+        if (!userId) {
+          return;
+        }
+
+        const response = await api.get(`/status/default/${userId}`);
+        const apiList = Array.isArray(response?.data?.content) ? response.data.content : [];
+
+        if (!apiList.length || !isMounted) {
+          return;
+        }
+
+        const mappedPets = apiList.map(mapPetFromApi);
+        setPets(mappedPets);
+        setCurrentPetIndex(0);
+      } catch (error) {
+        console.error('Erro ao buscar pets padrão:', error?.response?.data || error?.message);
+      }
+    };
+
+    loadPets();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const openDetails = () => {
     if (!isImageFocusedRef.current && !isDetailsExpandedRef.current) {
@@ -192,6 +248,8 @@ const PeTinderScreen = ({ navigation }) => {
           />
         )}
       </View>
+
+      <NewUserOnboardingGate navigation={navigation} route={route} />
     </View>
   );
 };

@@ -11,18 +11,18 @@ import {
   TouchableWithoutFeedback,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import axios from "axios";
+import api from "../api";
 import ActionSheet from "../components/ActionSheet";
 import Modal from "../components/Modal";
 import { LogoWithText } from "../components/Logo";
-import Input from "../components/Input";
 import Button from "../components/Button";
-import CodeInput from "../components/CodeInput";
 import Toast from "../components/Toast";
-import Checkbox from "../components/Checkbox";
+import ForgotPasswordModal from "../components/auth/ForgotPasswordModal";
+import LoginForm from "../components/auth/LoginForm";
+import RegisterForm from "../components/auth/RegisterForm";
+import { saveAuthSession } from "../storage/authSession";
 
 const HomeScreen = ({ navigation }) => {
-  const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.105:8080";
   const USE_BACKEND =
     (process.env.EXPO_PUBLIC_USE_BACKEND || "true").toLowerCase() === "true";
   const REQUEST_TIMEOUT_MS = 10000;
@@ -31,7 +31,6 @@ const HomeScreen = ({ navigation }) => {
   const [showRegister, setShowRegister] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetPasswordSteps, setResetPasswordSteps] = useState(0);
-  const [resetPasswordEmail, setResetPasswordEmail] = useState("");
   const [code, setCode] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -93,7 +92,6 @@ const HomeScreen = ({ navigation }) => {
     console.log("Abrir tela de recuperação de senha");
     setShowForgotPassword(true);
     setResetPasswordSteps(1);
-    setResetPasswordEmail("");
   };
 
   const validateEmailCode = () => {
@@ -152,18 +150,26 @@ const HomeScreen = ({ navigation }) => {
 
     if (!USE_BACKEND) {
       setTimeout(() => {
+        saveAuthSession({
+          id: "mock-user-id",
+          token: "mock-token",
+          email,
+          nome: "Usuario Mock",
+          userNovo: false,
+        }).catch((err) => {
+          console.error("Erro ao salvar sessao mock:", err);
+        });
         setIsLoading(false);
         setEmail("");
         setPassword("");
         setErrors({ email: false, password: false });
-        navigation.replace("PeTinder");
+        navigation.replace("PeTinder", { userNovo: false });
       }, 400);
       return;
     }
 
-    // POST ao backend
-    axios
-      .post(`${API_URL}/api/users/login`, {
+    api
+      .post("/users/login", {
         email,
         senha: password,
       }, {
@@ -171,13 +177,20 @@ const HomeScreen = ({ navigation }) => {
       })
       .then((response) => {
         console.log("Login sucesso:", response.data);
+        const isNewUser = Boolean(response?.data?.userNovo);
+        saveAuthSession({
+          id: response?.data?.id,
+          token: response?.data?.token,
+          nome: response?.data?.nome,
+          userNovo: isNewUser,
+        }).catch((err) => {
+          console.error("Erro ao salvar sessao:", err);
+        });
         setIsLoading(false);
-        // Limpar campos de login
         setEmail("");
         setPassword("");
         setErrors({ email: false, password: false });
-        // Navegar para PeTinder
-        navigation.replace("PeTinder");
+        navigation.replace("PeTinder", { userNovo: isNewUser });
       })
       .catch((error) => {
         console.error("Erro no login:", error.response?.data || error.message);
@@ -292,6 +305,8 @@ const HomeScreen = ({ navigation }) => {
 
     if (!birthDate) {
       nextErrors.birthDate = "Selecione a data de nascimento";
+    } else if (!isBirthDateInPast(birthDate)) {
+      nextErrors.birthDate = "A data de nascimento deve ser no passado";
     }
 
     if (!acceptedTerms) {
@@ -317,6 +332,42 @@ const HomeScreen = ({ navigation }) => {
     }, 5000);
   };
 
+  const formatBirthDateForApi = (dateValue) => {
+    if (!dateValue) {
+      return null;
+    }
+
+    const parsedDate = new Date(dateValue);
+
+    if (Number.isNaN(parsedDate.getTime())) {
+      return null;
+    }
+
+    const year = parsedDate.getFullYear();
+    const month = String(parsedDate.getMonth() + 1).padStart(2, "0");
+    const day = String(parsedDate.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
+  };
+
+  const isBirthDateInPast = (dateValue) => {
+    if (!dateValue) {
+      return false;
+    }
+
+    const parsedDate = new Date(dateValue);
+
+    if (Number.isNaN(parsedDate.getTime())) {
+      return false;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    parsedDate.setHours(0, 0, 0, 0);
+
+    return parsedDate < today;
+  };
+
   const handleAcknowledgeImportant = () => {
     if (!canAcknowledgeImportant) {
       return;
@@ -327,20 +378,18 @@ const HomeScreen = ({ navigation }) => {
       acknowledgeTimerRef.current = null;
     }
 
+
     setShowImportantModal(false);
     setCanAcknowledgeImportant(false);
     setIsCreateAccountLoading(false);
 
-    // Formatar data para ISO (YYYY-MM-DD)
-    const dataNascFormatted = birthDate
-      ? new Date(birthDate).toISOString().split("T")[0]
-      : null;
+    const dataNascFormatted = formatBirthDateForApi(birthDate);
 
-    // Preparar payload
     const payload = {
       nome: fullName,
       email: registerEmail,
       senha: registerPassword,
+      dataNascimento: dataNascFormatted,
       dataNasc: dataNascFormatted,
       cpf: null,
       cep: null,
@@ -374,19 +423,18 @@ const HomeScreen = ({ navigation }) => {
       finalizeRegisterSuccess();
       return;
     }
-
-    // Fazer POST ao backend
-    axios
-      .post(`${API_URL}/api/users`, payload, {
+    api
+      .post("/users", payload, {
         timeout: REQUEST_TIMEOUT_MS,
       })
       .then((response) => {
         console.log("Cadastro sucesso:", response.data);
+        setEmail(registerEmail);
+        setPassword("");
         finalizeRegisterSuccess();
       })
       .catch((error) => {
         console.error("Erro no cadastro:", error.response?.data || error.message);
-        // Toast de erro
         setToast({
           visible: true,
           type: "error",
@@ -399,12 +447,118 @@ const HomeScreen = ({ navigation }) => {
         setTimeout(() => {
           setToast((prev) => ({ ...prev, visible: false }));
         }, 2500);
-        // Fechar modal e voltar para formulário sem loading
+
         setShowImportantModal(false);
         setIsCreateAccountLoading(false);
         setCanAcknowledgeImportant(false);
       });
   };
+
+  const renderAuthContent = () => {
+    if (!showLogin && !showRegister) {
+      return (
+        <>
+          <Button variant="primary" onPress={() => handleTransition("register")}>
+            Criar Conta
+          </Button>
+          <Text style={styles.divider}>ou</Text>
+          <Button variant="secondary" onPress={() => handleTransition("login")}>
+            Entrar
+          </Button>
+        </>
+      );
+    }
+
+    if (showLogin) {
+      return (
+        <LoginForm
+          errorMessage={errorMessage}
+          email={email}
+          password={password}
+          errors={errors}
+          isLoading={isLoading}
+          onEmailChange={(text) => {
+            setEmail(text);
+            setErrors({ ...errors, email: false });
+            setErrorMessage("");
+          }}
+          onPasswordChange={(text) => {
+            setPassword(text);
+            setErrors({ ...errors, password: false });
+            setErrorMessage("");
+          }}
+          onLogin={handleLogin}
+          onForgotPassword={openMissPasswordReset}
+        />
+      );
+    }
+
+    return (
+      <RegisterForm
+        registerStep={registerStep}
+        registerErrors={registerErrors}
+        fullName={fullName}
+        registerEmail={registerEmail}
+        registerPassword={registerPassword}
+        confirmRegisterPassword={confirmRegisterPassword}
+        birthDate={birthDate}
+        acceptedTerms={acceptedTerms}
+        isCreateAccountLoading={isCreateAccountLoading}
+        onFullNameChange={(text) => {
+          setFullName(text);
+          if (registerErrors.fullName) {
+            setRegisterErrors((prev) => ({ ...prev, fullName: "" }));
+          }
+        }}
+        onRegisterEmailChange={(text) => {
+          setRegisterEmail(text);
+          if (registerErrors.email) {
+            setRegisterErrors((prev) => ({ ...prev, email: "" }));
+          }
+        }}
+        onRegisterPasswordChange={(text) => {
+          setRegisterPassword(text);
+          if (registerErrors.password || registerErrors.confirmPassword) {
+            setRegisterErrors((prev) => ({
+              ...prev,
+              password: "",
+              confirmPassword: "",
+            }));
+          }
+        }}
+        onConfirmRegisterPasswordChange={(text) => {
+          setConfirmRegisterPassword(text);
+          if (registerErrors.confirmPassword) {
+            setRegisterErrors((prev) => ({ ...prev, confirmPassword: "" }));
+          }
+        }}
+        onBirthDateChange={(date) => {
+          setBirthDate(date);
+          if (registerErrors.birthDate) {
+            setRegisterErrors((prev) => ({ ...prev, birthDate: "" }));
+          }
+        }}
+        onAcceptedTermsChange={(value) => {
+          setAcceptedTerms(value);
+          if (registerErrors.terms) {
+            setRegisterErrors((prev) => ({ ...prev, terms: "" }));
+          }
+        }}
+        onRegisterNext={handleRegisterNext}
+        onCreateAccount={handleCreateAccount}
+      />
+    );
+  };
+
+  const actionSheet = (
+    <ActionSheet
+      title={showRegister ? "Criar Conta" : showLogin ? "Entrar" : "Bem vindo ao PeTinder"}
+      showBackButton={showLogin || showRegister}
+      onBack={handleBackFromAuth}
+    >
+      <Animated.View style={{ opacity: fadeAnim }}>{renderAuthContent()}</Animated.View>
+    </ActionSheet>
+  );
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
@@ -437,436 +591,38 @@ const HomeScreen = ({ navigation }) => {
 
           {/* ActionSheet sempre renderizada. Sobe com o teclado só se não houver modal */}
           {showForgotPassword ? (
-            <ActionSheet
-              title={
-                showRegister
-                  ? "Criar Conta"
-                  : showLogin
-                    ? "Entrar"
-                    : "Bem vindo ao PeTinder"
-              }
-              showBackButton={showLogin || showRegister}
-              onBack={handleBackFromAuth}
-            >
-              <Animated.View style={{ opacity: fadeAnim }}>
-                {!showLogin && !showRegister ? (
-                  <>
-                    <Button
-                      variant="primary"
-                      onPress={() => handleTransition("register")}
-                    >
-                      Criar Conta
-                    </Button>
-                    <Text style={styles.divider}>ou</Text>
-                    <Button
-                      variant="secondary"
-                      onPress={() => handleTransition("login")}
-                    >
-                      Entrar
-                    </Button>
-                  </>
-                ) : showLogin ? (
-                  <>
-                    {errorMessage && (
-                      <Text style={styles.errorLabel}>{errorMessage}</Text>
-                    )}
-                    <Input
-                      label="Email"
-                      value={email}
-                      onChangeText={(text) => {
-                        setEmail(text);
-                        setErrors({ ...errors, email: false });
-                        setErrorMessage("");
-                      }}
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      error={errors.email}
-                    />
-                    <Input
-                      label="Senha"
-                      value={password}
-                      onChangeText={(text) => {
-                        setPassword(text);
-                        setErrors({ ...errors, password: false });
-                        setErrorMessage("");
-                      }}
-                      secureTextEntry
-                      error={errors.password}
-                    />
-                    <Button
-                      variant="primary"
-                      onPress={handleLogin}
-                      disabled={isLoading}
-                      isLoading={isLoading}
-                    >
-                      Entrar
-                    </Button>
-                    <Button
-                      variant="forgotPassword"
-                      onPress={openMissPasswordReset}
-                    >
-                      Esqueceu a senha?
-                    </Button>
-                  </>
-                ) : registerStep === 1 ? (
-                  <>
-                    <Input
-                      label={registerErrors.fullName || "Nome Completo"}
-                      labelColor={registerErrors.fullName ? "#FF6B6B" : undefined}
-                      value={fullName}
-                      onChangeText={(text) => {
-                        setFullName(text);
-                        if (registerErrors.fullName) {
-                          setRegisterErrors((prev) => ({ ...prev, fullName: "" }));
-                        }
-                      }}
-                      error={!!registerErrors.fullName}
-                    />
-                    <Input
-                      label={registerErrors.email || "Email"}
-                      labelColor={registerErrors.email ? "#FF6B6B" : undefined}
-                      value={registerEmail}
-                      onChangeText={(text) => {
-                        setRegisterEmail(text);
-                        if (registerErrors.email) {
-                          setRegisterErrors((prev) => ({ ...prev, email: "" }));
-                        }
-                      }}
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      error={!!registerErrors.email}
-                    />
-                    <Input
-                      label={registerErrors.password || "Senha"}
-                      labelColor={registerErrors.password ? "#FF6B6B" : undefined}
-                      value={registerPassword}
-                      onChangeText={(text) => {
-                        setRegisterPassword(text);
-                        if (registerErrors.password || registerErrors.confirmPassword) {
-                          setRegisterErrors((prev) => ({
-                            ...prev,
-                            password: "",
-                            confirmPassword: "",
-                          }));
-                        }
-                      }}
-                      secureTextEntry
-                      error={!!registerErrors.password}
-                    />
-                    <Input
-                      label={registerErrors.confirmPassword || "Confirmar Senha"}
-                      labelColor={registerErrors.confirmPassword ? "#FF6B6B" : undefined}
-                      value={confirmRegisterPassword}
-                      onChangeText={(text) => {
-                        setConfirmRegisterPassword(text);
-                        if (registerErrors.confirmPassword) {
-                          setRegisterErrors((prev) => ({ ...prev, confirmPassword: "" }));
-                        }
-                      }}
-                      secureTextEntry
-                      error={!!registerErrors.confirmPassword}
-                    />
-                    <Button variant="secondary" onPress={handleRegisterNext}>
-                      Próximo
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Input
-                      variant="date"
-                      label={registerErrors.birthDate || "Data de Nascimento"}
-                      labelColor={registerErrors.birthDate ? "#FF6B6B" : undefined}
-                      dateValue={birthDate}
-                      onDateChange={(date) => {
-                        setBirthDate(date);
-                        if (registerErrors.birthDate) {
-                          setRegisterErrors((prev) => ({ ...prev, birthDate: "" }));
-                        }
-                      }}
-                      error={!!registerErrors.birthDate}
-                    />
-                    <Checkbox
-                      checked={acceptedTerms}
-                      onChange={(value) => {
-                        setAcceptedTerms(value);
-                        if (registerErrors.terms) {
-                          setRegisterErrors((prev) => ({ ...prev, terms: "" }));
-                        }
-                      }}
-                      error={!!registerErrors.terms}
-                      label="Li e aceito os Termos de condição."
-                    />
-                    <Button
-                      variant="primary"
-                      onPress={handleCreateAccount}
-                      isLoading={isCreateAccountLoading}
-                    >
-                      Criar Conta
-                    </Button>
-                  </>
-                )}
-              </Animated.View>
-            </ActionSheet>
+            actionSheet
           ) : (
             <KeyboardAvoidingView
               behavior={Platform.OS === "ios" ? "padding" : "height"}
               style={{ width: "100%" }}
             >
-              <ActionSheet
-                title={
-                  showRegister
-                    ? "Criar Conta"
-                    : showLogin
-                      ? "Entrar"
-                      : "Bem vindo ao PeTinder"
-                }
-                showBackButton={showLogin || showRegister}
-                onBack={handleBackFromAuth}
-              >
-                <Animated.View style={{ opacity: fadeAnim }}>
-                  {!showLogin && !showRegister ? (
-                    <>
-                      <Button
-                        variant="primary"
-                        onPress={() => handleTransition("register")}
-                      >
-                        Criar Conta
-                      </Button>
-                      <Text style={styles.divider}>ou</Text>
-                      <Button
-                        variant="secondary"
-                        onPress={() => handleTransition("login")}
-                      >
-                        Entrar
-                      </Button>
-                    </>
-                  ) : showLogin ? (
-                    <>
-                      {errorMessage && (
-                        <Text style={styles.errorLabel}>{errorMessage}</Text>
-                      )}
-                      <Input
-                        label="Email"
-                        value={email}
-                        onChangeText={(text) => {
-                          setEmail(text);
-                          setErrors({ ...errors, email: false });
-                          setErrorMessage("");
-                        }}
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        error={errors.email}
-                      />
-                      <Input
-                        label="Senha"
-                        value={password}
-                        onChangeText={(text) => {
-                          setPassword(text);
-                          setErrors({ ...errors, password: false });
-                          setErrorMessage("");
-                        }}
-                        secureTextEntry
-                        error={errors.password}
-                      />
-                      <Button
-                        variant="primary"
-                        onPress={handleLogin}
-                        disabled={isLoading}
-                        isLoading={isLoading}
-                      >
-                        Entrar
-                      </Button>
-                      <Button
-                        variant="forgotPassword"
-                        onPress={openMissPasswordReset}
-                      >
-                        Esqueceu a senha?
-                      </Button>
-                    </>
-                  ) : registerStep === 1 ? (
-                    <>
-                      <Input
-                        label={registerErrors.fullName || "Nome Completo"}
-                        labelColor={registerErrors.fullName ? "#FF6B6B" : undefined}
-                        value={fullName}
-                        onChangeText={(text) => {
-                          setFullName(text);
-                          if (registerErrors.fullName) {
-                            setRegisterErrors((prev) => ({ ...prev, fullName: "" }));
-                          }
-                        }}
-                        error={!!registerErrors.fullName}
-                      />
-                      <Input
-                        label={registerErrors.email || "Email"}
-                        labelColor={registerErrors.email ? "#FF6B6B" : undefined}
-                        value={registerEmail}
-                        onChangeText={(text) => {
-                          setRegisterEmail(text);
-                          if (registerErrors.email) {
-                            setRegisterErrors((prev) => ({ ...prev, email: "" }));
-                          }
-                        }}
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        error={!!registerErrors.email}
-                      />
-                      <Input
-                        label={registerErrors.password || "Senha"}
-                        labelColor={registerErrors.password ? "#FF6B6B" : undefined}
-                        value={registerPassword}
-                        onChangeText={(text) => {
-                          setRegisterPassword(text);
-                          if (registerErrors.password || registerErrors.confirmPassword) {
-                            setRegisterErrors((prev) => ({
-                              ...prev,
-                              password: "",
-                              confirmPassword: "",
-                            }));
-                          }
-                        }}
-                        secureTextEntry
-                        error={!!registerErrors.password}
-                      />
-                      <Input
-                        label={registerErrors.confirmPassword || "Confirmar Senha"}
-                        labelColor={registerErrors.confirmPassword ? "#FF6B6B" : undefined}
-                        value={confirmRegisterPassword}
-                        onChangeText={(text) => {
-                          setConfirmRegisterPassword(text);
-                          if (registerErrors.confirmPassword) {
-                            setRegisterErrors((prev) => ({ ...prev, confirmPassword: "" }));
-                          }
-                        }}
-                        secureTextEntry
-                        error={!!registerErrors.confirmPassword}
-                      />
-                      <Button variant="secondary" onPress={handleRegisterNext}>
-                        Próximo
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <Input
-                        variant="date"
-                        label={registerErrors.birthDate || "Data de Nascimento"}
-                        labelColor={registerErrors.birthDate ? "#FF6B6B" : undefined}
-                        dateValue={birthDate}
-                        onDateChange={(date) => {
-                          setBirthDate(date);
-                          if (registerErrors.birthDate) {
-                            setRegisterErrors((prev) => ({ ...prev, birthDate: "" }));
-                          }
-                        }}
-                        error={!!registerErrors.birthDate}
-                      />
-                      <Checkbox
-                        checked={acceptedTerms}
-                        onChange={(value) => {
-                          setAcceptedTerms(value);
-                          if (registerErrors.terms) {
-                            setRegisterErrors((prev) => ({ ...prev, terms: "" }));
-                          }
-                        }}
-                        error={!!registerErrors.terms}
-                        label="Li e aceito os Termos de condição."
-                      />
-                      <Button
-                        variant="primary"
-                        onPress={handleCreateAccount}
-                        isLoading={isCreateAccountLoading}
-                      >
-                        Criar Conta
-                      </Button>
-                    </>
-                  )}
-                </Animated.View>
-              </ActionSheet>
+              {actionSheet}
             </KeyboardAvoidingView>
           )}
 
           {/* Modal flutuante, só ele sobe com o teclado */}
           {showForgotPassword && (
-            <Modal
+            <ForgotPasswordModal
               visible={showForgotPassword}
+              step={resetPasswordSteps}
+              email={email}
+              code={code}
+              password={password}
+              isCodeLoading={isCodeLoading}
+              isResetLoading={isResetLoading}
               onClose={() => {
                 setShowForgotPassword(false);
                 setResetPasswordSteps(1);
               }}
-              title={"Esqueci minha senha"}
-              showCloseButton={resetPasswordSteps === 1}
-              showBackButton={resetPasswordSteps === 2}
-              onBack={() => handleBackStepResetPassword()}
-            >
-              {resetPasswordSteps === 1 ? (
-                <>
-                  <Text style={styles.forgotPasswordText}>
-                    Informe seu e-mail para enviarmos o código de redefinição de
-                    senha.
-                  </Text>
-                  <Input
-                    label="Email"
-                    value={email}
-                    onChangeText={(text) => setEmail(text)}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                  />
-                  <Button
-                    variant="primary"
-                    onPress={() => setResetPasswordSteps(2)}
-                  >
-                    Enviar Código
-                  </Button>
-                </>
-              ) : resetPasswordSteps === 2 ? (
-                <>
-                  <CodeInput value={code} onChangeCode={setCode} />
-                  <Button
-                    variant="primary"
-                    onPress={validateEmailCode}
-                    isLoading={isCodeLoading}
-                    style={{ marginTop: 16 }}
-                  >
-                    Enviar
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      fontFamily: "Poppins_400Regular",
-                      color: "#fff",
-                      textAlign: "center",
-                      marginBottom: 10,
-                    }}
-                  >
-                    Crie uma nova senha para sua conta.
-                  </Text>
-                  <Input
-                    label="Nova Senha"
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry
-                  />
-                  <Input
-                    label="Confirmar Senha"
-                    value={""}
-                    onChangeText={() => {}}
-                    secureTextEntry
-                  />
-                  <Button
-                    variant="primary"
-                    style={{ marginTop: 8, marginBottom: 0 }}
-                    onPress={handleResetPassword}
-                    isLoading={isResetLoading}
-                    disabled={isResetLoading}
-                  >
-                    Alterar Senha
-                  </Button>
-                </>
-              )}
-            </Modal>
+              onBack={handleBackStepResetPassword}
+              onEmailChange={setEmail}
+              onCodeChange={setCode}
+              onGoToCodeStep={() => setResetPasswordSteps(2)}
+              onValidateCode={validateEmailCode}
+              onPasswordChange={setPassword}
+              onResetPassword={handleResetPassword}
+            />
           )}
 
           {showImportantModal && (
@@ -980,20 +736,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: "Poppins_400Regular",
     color: "#FFFFFF",
-  },
-  errorLabel: {
-    fontSize: 14,
-    fontFamily: "Poppins_400Regular",
-    color: "#FF6B6B",
-    marginBottom: 20,
-    textAlign: "center",
-  },
-
-  forgotPasswordText: {
-    fontSize: 14,
-    fontFamily: "Poppins_400Regular",
-    color: "#FFFFFF",
-    marginBottom: 10,
   },
   importantText: {
     fontSize: 15,

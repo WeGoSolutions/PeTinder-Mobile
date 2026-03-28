@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useRoute } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -7,29 +7,122 @@ import { UserInfo } from '../components/config/UserInfo';
 import { ContentTabs } from '../components/config/ContentTabs';
 import { ContaTab } from '../components/config/ContaTab';
 import Modal from '../components/Modal';
+import api from '../api';
+import { getAuthUserId } from '../storage/authSession';
+
+const formatDateForView = (isoDate) => {
+  if (!isoDate) {
+    return '';
+  }
+
+  const value = String(isoDate);
+  if (value.includes('-')) {
+    const [year, month, day] = value.split('-');
+    if (year && month && day) {
+      return `${day}/${month}/${year}`;
+    }
+  }
+
+  return value;
+};
+
+const normalizeImageUri = (imageValue) => {
+  if (!imageValue) {
+    return null;
+  }
+
+  if (
+    imageValue.startsWith('http://')
+    || imageValue.startsWith('https://')
+    || imageValue.startsWith('data:image')
+  ) {
+    return imageValue;
+  }
+
+  return `data:image/jpeg;base64,${imageValue}`;
+};
 
 const ConfigScreen = ({ navigation }) => {
   const route = useRoute();
   const title = route.params?.title || 'Configurações';
+  const [isLoadingUser, setIsLoadingUser] = useState(false);
+  const [userProfile, setUserProfile] = useState(null);
+  const [userFetchError, setUserFetchError] = useState('');
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadUserProfile = async () => {
+      try {
+        setIsLoadingUser(true);
+        setUserFetchError('');
+
+        const userId = await getAuthUserId();
+
+        if (!userId) {
+          if (isMounted) {
+            setUserFetchError('Usuário não encontrado na sessão.');
+          }
+          return;
+        }
+
+        const response = await api.get(`/users/${userId}`);
+
+        if (isMounted) {
+          setUserProfile(response.data || null);
+        }
+      } catch (error) {
+        if (isMounted) {
+          const errorMsg =
+            error?.response?.data?.message
+            || error?.message
+            || 'Não foi possível carregar os dados da conta.';
+          setUserFetchError(errorMsg);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingUser(false);
+        }
+      }
+    };
+
+    loadUserProfile();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const personalData = {
+    email: userProfile?.email || '',
+    cpf: userProfile?.cpf || '',
+    dataNasc: formatDateForView(userProfile?.dataNascimento),
+  };
+
+  const addressData = {
+    cep: userProfile?.cep || '',
+    rua: userProfile?.rua || '',
+    numero: userProfile?.numero || '',
+    complemento: userProfile?.complemento || '',
+    cidade: userProfile?.cidade || '',
+    uf: userProfile?.uf || '',
+  };
+
   const tabs = [
     {
       label: "Conta",
       content: (
-        <ContaTab
-          personalData={{
-            email: "sabrina@gmail.com",
-            cpf: "***.222.333-**",
-            dataNasc: "11/05/1999",
-          }}
-          addressData={{
-            cep: "08290-001",
-            rua: "R. Victorio Santim",
-            numero: "2776",
-            complemento: "Apartamento 8A",
-            cidade: "Sao Paulo",
-            uf: "SP",
-          }}
-        />
+        isLoadingUser ? (
+          <View>
+            <Text style={styles.tabTitle}>Carregando dados da conta...</Text>
+          </View>
+        ) : userFetchError ? (
+          <View>
+            <Text style={styles.errorText}>{userFetchError}</Text>
+          </View>
+        ) : (
+          <ContaTab personalData={personalData} addressData={addressData} />
+        )
       ),
     },
     {
@@ -60,7 +153,10 @@ const ConfigScreen = ({ navigation }) => {
   return (
     <View style={styles.root}>
       <CustomHeader onBack={() => navigation.goBack()} title={title} />
-      <UserInfo nome={"Sabrina"} />
+      <UserInfo
+        nome={userProfile?.nome || 'Usuário'}
+        userImageURL={normalizeImageUri(userProfile?.imagemUrl)}
+      />
       <ContentTabs
         tabs={tabs}
         activeTab={activeTab.label}
@@ -128,6 +224,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Poppins_600SemiBold',
     color: '#FFFFFF',
+  },
+  errorText: {
+    fontSize: 14,
+    fontFamily: 'Poppins_500Medium',
+    color: '#FF6B6B',
   },
   exitButtonContainer: {
     marginTop: 20,

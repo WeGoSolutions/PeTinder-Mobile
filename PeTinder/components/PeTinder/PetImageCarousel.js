@@ -3,8 +3,8 @@ import { View, Image, Pressable, StyleSheet, Animated, PanResponder, Easing } fr
 import { LinearGradient } from 'expo-linear-gradient';
 
 const FOCUS_PRESS_DELAY_MS = 220;
-const SWIPE_TRIGGER_DISTANCE = 90;
-const SWIPE_TRIGGER_VELOCITY = 0.8;
+const SWIPE_TRIGGER_DISTANCE = 45;
+const SWIPE_TRIGGER_VELOCITY = 0.45;
 
 const getImageCacheKey = (source) => {
   if (typeof source === 'number') {
@@ -63,7 +63,7 @@ const PetImageCarousel = ({
       onMoveShouldSetPanResponder: (_, gestureState) => {
         return (
           !isSwipeAnimatingRef.current
-          && Math.abs(gestureState.dx) > 8
+          && Math.abs(gestureState.dx) > 4
           && Math.abs(gestureState.dx) > Math.abs(gestureState.dy)
         );
       },
