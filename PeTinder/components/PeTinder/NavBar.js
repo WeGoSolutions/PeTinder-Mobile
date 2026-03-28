@@ -23,6 +23,12 @@ export const NavBar = ({ navigation }) => {
             style={styles.image}
           />
         </Pressable>
+                <Pressable onPress={() => console.log("likeds")}>
+          <Image
+            source={require("../../assets/likeds-icon.png")}
+            style={styles.image}
+          />
+        </Pressable>
         <Pressable onPress={toChat}>
           <Image
             source={require("../../assets/chat-icon.png")}

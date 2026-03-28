@@ -16,7 +16,6 @@ const PET_PROFILES = [
     sex: 'M',
     age: '-',
     likes: 0,
-    liked: false,
     images: [require('../assets/cachorro.png')],
     description: 'Estamos preparando os perfis para você.',
     features: ['Vacinado'],
@@ -167,26 +166,54 @@ const PeTinderScreen = ({ navigation, route }) => {
     }
   };
 
-  const handleToggleLike = () => {
-    setPets((prevPets) => {
-      const nextPets = [...prevPets];
-      const selectedPet = nextPets[currentPetIndex];
+  const handleToggleLike = async () => {
+    const selectedPet = pets[currentPetIndex];
 
-      if (!selectedPet) {
-        return prevPets;
+    if (!selectedPet?.id) {
+      return;
+    }
+
+    try {
+      const userId = await getAuthUserId();
+
+      if (!userId) {
+        return;
       }
 
-      const nextLiked = !selectedPet.liked;
-      const nextLikes = nextLiked ? selectedPet.likes + 1 : Math.max(0, selectedPet.likes - 1);
-
-      nextPets[currentPetIndex] = {
-        ...selectedPet,
-        liked: nextLiked,
-        likes: nextLikes,
+      const body = {
+        petId: selectedPet.id,
+        userId,
+        status: 'LIKED',
       };
 
-      return nextPets;
-    });
+      console.log('Enviando like para API:', body);
+
+      await api.post('/status', {
+        petId: selectedPet.id,
+        userId: userId,
+        status: 'LIKED',
+      });
+
+      setPets((prevPets) => {
+        const nextPets = [...prevPets];
+        const pet = nextPets[currentPetIndex];
+
+        if (!pet) {
+          return prevPets;
+        }
+
+        nextPets[currentPetIndex] = {
+          ...pet,
+          liked: !pet.liked,
+        };
+
+        return nextPets;
+      });
+
+      goToNextPet();
+    } catch (error) {
+      console.error('Erro ao curtir pet:', error?.response?.data || error?.message);
+    }
   };
 
   const goToNextPet = () => {
