@@ -11,6 +11,10 @@ export const NavBar = ({ navigation }) => {
     navigation.navigate("Chat", { title: "Chat" });
   };
 
+  const toLiked = () => {
+    navigation.navigate("Liked", { title: "Curtidos" });
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.logoContainer}>
@@ -23,7 +27,7 @@ export const NavBar = ({ navigation }) => {
             style={styles.image}
           />
         </Pressable>
-                <Pressable onPress={() => console.log("likeds")}>
+        <Pressable onPress={toLiked}>
           <Image
             source={require("../../assets/likeds-icon.png")}
             style={styles.image}

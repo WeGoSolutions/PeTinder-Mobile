@@ -1,12 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import { useRoute } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CustomHeader } from '../components/CustomHeader';
 import ChatCard from '../components/Chat/ChatCard';
 import api from '../api';
 import { getAuthSession } from '../storage/authSession';
 import { buildDirectChatId, subscribeToUserChats } from '../services/chatFirebase';
 import { hasRequiredFirebaseConfig } from '../services/firebase';
+import AIButton from '../components/Chat/AIButton';
+
+const AI_BUTTON_HEIGHT = 72;
 
 const timestampToMillis = (timestamp) => {
   if (!timestamp) {
@@ -48,14 +52,21 @@ const formatChatTime = (millis) => {
 
 const ChatScreen = ({ navigation }) => {
   const route = useRoute();
+  const insets = useSafeAreaInsets();
   const title = route.params?.title || 'Chat';
   const [users, setUsers] = useState([]);
   const [firebaseChatsById, setFirebaseChatsById] = useState({});
   const [isLoading, setIsLoading] = useState(true);
+  const [isUsersLoaded, setIsUsersLoaded] = useState(false);
+  const [isChatsLoaded, setIsChatsLoaded] = useState(!hasRequiredFirebaseConfig);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUserName, setCurrentUserName] = useState('Você');
   const [apiError, setApiError] = useState('');
   const [firebaseError, setFirebaseError] = useState('');
+
+  useEffect(() => {
+    setIsLoading(!(isUsersLoaded && isChatsLoaded));
+  }, [isUsersLoaded, isChatsLoaded]);
 
   useEffect(() => {
     let unsubscribe = () => {};
@@ -74,9 +85,13 @@ const ChatScreen = ({ navigation }) => {
         setUsers(allUsers);
       } catch (error) {
         setApiError(error?.response?.data?.message || 'Erro ao carregar usuários da API.');
+      } finally {
+        setIsUsersLoaded(true);
       }
 
-      setIsLoading(false);
+      if (!hasRequiredFirebaseConfig) {
+        setIsChatsLoaded(true);
+      }
 
       unsubscribe = subscribeToUserChats(
         userId,
@@ -86,16 +101,19 @@ const ChatScreen = ({ navigation }) => {
             return accumulator;
           }, {});
           setFirebaseChatsById(mappedById);
+          setIsChatsLoaded(true);
         },
         (error) => {
           setFirebaseError(error?.message || 'Erro ao carregar chats do Firebase.');
+          setIsChatsLoaded(true);
         },
       );
     };
 
     init().catch((error) => {
       setApiError(error?.message || 'Erro ao iniciar chat.');
-      setIsLoading(false);
+      setIsUsersLoaded(true);
+      setIsChatsLoaded(true);
     });
 
     return () => {
@@ -153,25 +171,34 @@ const ChatScreen = ({ navigation }) => {
 
       {Boolean(firebaseError) && <Text style={styles.errorText}>{firebaseError}</Text>}
 
-      {isLoading && <Text style={styles.loadingText}>Carregando conversas...</Text>}
+      {isLoading ? (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#FFC0D9" />
+        </View>
+      ) : (
+        <FlatList
+          data={chatList}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <ChatCard
+              name={item.name}
+              lastMessage={item.lastMessage}
+              isLastMessageMine={item.isLastMessageMine}
+              lastMessageTime={formatChatTime(item.lastMessageAt)}
+              unreadCount={item.unreadCount}
+              avatar={item.avatar}
+              onPress={() => openConversation(item)}
+            />
+          )}
+          contentContainerStyle={styles.listContent}
+          style={styles.list}
+          ListEmptyComponent={<Text style={styles.loadingText}>Nenhum usuário encontrado.</Text>}
+        />
+      )}
 
-      <FlatList
-        data={chatList}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <ChatCard
-            name={item.name}
-            lastMessage={item.lastMessage}
-            isLastMessageMine={item.isLastMessageMine}
-            lastMessageTime={formatChatTime(item.lastMessageAt)}
-            unreadCount={item.unreadCount}
-            avatar={item.avatar}
-            onPress={() => openConversation(item)}
-          />
-        )}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={!isLoading ? <Text style={styles.loadingText}>Nenhum usuário encontrado.</Text> : null}
-      />
+      <View style={[styles.aiButtonWrapper, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+        <AIButton />
+      </View>
     </View>
   );
 };
@@ -190,8 +217,39 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_600SemiBold',
     color: '#FFFFFF',
   },
+  list: {
+    marginBottom: 115,
+  },
   listContent: {
     paddingBottom: 24,
+  },
+  loadingOverlay: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    marginBottom: 115,
+  },
+  loadingTitle: {
+    marginTop: 14,
+    color: '#FFFFFF',
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  loadingSubtitle: {
+    marginTop: 4,
+    color: '#CFCFCF',
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  aiButtonWrapper: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 0,
+    backgroundColor: '#1A1A1A',
   },
   hintText: {
     color: '#CFCFCF',

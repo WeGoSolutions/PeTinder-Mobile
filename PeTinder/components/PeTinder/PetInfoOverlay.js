@@ -97,7 +97,8 @@ const styles = StyleSheet.create({
     fontSize: 33,
     lineHeight: 35,
     fontFamily: 'Poppins_700Bold',
-  },
+    maxWidth: '67%',
+    },
   age: {
     color: '#FFFFFF',
     fontSize: 20,

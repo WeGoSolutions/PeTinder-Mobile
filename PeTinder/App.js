@@ -15,6 +15,7 @@ import PeTinderScreen from "./screens/PeTinderScreen";
 import ConfigScreen from "./screens/ConfigScreen";
 import ChatScreen from "./screens/ChatScreen";
 import ChatConversationScreen from "./screens/ChatConversationScreen";
+import LikedScreen from "./screens/LikedScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -64,6 +65,15 @@ export default function App() {
           <Stack.Screen
             name="Chat"
             component={ChatScreen}
+            options={{
+              headerShown: false,
+              gestureEnabled: true,
+            }}
+          />
+
+          <Stack.Screen
+            name="Liked"
+            component={LikedScreen}
             options={{
               headerShown: false,
               gestureEnabled: true,
