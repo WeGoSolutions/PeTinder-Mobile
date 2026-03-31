@@ -2,7 +2,7 @@ import React from "react";
 import { View, StyleSheet, Pressable, Text, Image } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 
-export const UserInfo = ({ nome, userImageURL }) => {
+export const UserInfo = ({ nome, userImageURL, onEditProfilePress, isEditing }) => {
   return (
     <View style={styles.container}>
       <Image
@@ -15,22 +15,24 @@ export const UserInfo = ({ nome, userImageURL }) => {
       />
       <View style={styles.infoContainer}>
         <Text style={styles.name}>Olá, {nome}</Text>
-        <Pressable
-          onPress={() => console.log("Edit Profile")}
-          style={({ pressed }) => [
-            styles.editButtonPressable,
-            pressed && styles.editButtonPressed,
-          ]}
-        >
-          <LinearGradient
-            colors={["#E8A0BF", "#F8C8DC", "#FDE4E9"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.editButton}
+        {!isEditing && (
+          <Pressable
+            onPress={onEditProfilePress}
+            style={({ pressed }) => [
+              styles.editButtonPressable,
+              pressed && styles.editButtonPressed,
+            ]}
           >
-            <Text style={styles.editButtonText}>Editar Perfil</Text>
-          </LinearGradient>
-        </Pressable>
+            <LinearGradient
+              colors={["#E8A0BF", "#F8C8DC", "#FDE4E9"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.editButton}
+            >
+              <Text style={styles.editButtonText}>Editar Perfil</Text>
+            </LinearGradient>
+          </Pressable>
+        )}
       </View>
     </View>
   );

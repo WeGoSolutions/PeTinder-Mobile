@@ -96,8 +96,8 @@ const Input = ({
               !isReadOnly && pressed && styles.datePressed,
             ]}
           >
-            <View style={[styles.input, styles.dateInput, error && styles.inputError]}>
-              <Text style={[styles.dateText, !displayValue && styles.datePlaceholder]}>
+            <View style={[styles.input, styles.dateInput, error && styles.inputError, isReadOnly && styles.dateInputDisabled]}>
+              <Text style={[styles.dateText, !displayValue && styles.datePlaceholder, isReadOnly && styles.dateTextDisabled]}>
                 {displayValue || placeholder || 'Selecione uma data'}
               </Text>
               <MaterialIcons
@@ -149,7 +149,7 @@ const Input = ({
         </>
       ) : (
         <TextInput
-          style={[styles.input, error && styles.inputError]}
+          style={[styles.input, error && styles.inputError, isReadOnly && styles.inputDisabled]}
           value={value}
           onChangeText={onChangeText}
           onFocus={() => setIsFocused(true)}
