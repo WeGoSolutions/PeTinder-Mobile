@@ -130,15 +130,7 @@ const ConfigScreen = ({ navigation }) => {
       label: "Configurações",
       content: (
         <View>
-          <EditProfileTab
-            personalData={personalData}
-            addressData={addressData}
-            onSave={(newPersonalData, newAddressData) => {
-              // Aqui você pode implementar a lógica para salvar os dados via API
-              console.log("Salvar dados:", newPersonalData, newAddressData);
-              setIsEditing(false);
-            }}
-          />
+          <Text style={styles.tabTitle}>Configurações</Text>
         </View>
       ),
     },
@@ -169,16 +161,36 @@ const ConfigScreen = ({ navigation }) => {
         isEditing={isEditing}
         onEditProfilePress={() => {
           setIsEditing(true);
-          setActiveTab(tabs.find((tab) => tab.label === "Configurações") || tabs[1]);
         }}
       />
-      <ContentTabs
-        tabs={tabs}
-        activeTab={activeTab.label}
-        onTabPress={(label) =>
-          setActiveTab(tabs.find((tab) => tab.label === label) || tabs[0])
-        }
-      />
+      {!isEditing ? (
+        <ContentTabs
+          tabs={tabs}
+          activeTab={activeTab.label}
+          onTabPress={(label) =>
+            setActiveTab(tabs.find((tab) => tab.label === label) || tabs[0])
+          }
+        />
+      ) : (
+        <View style={styles.editingTabsContainer}>
+          <View style={styles.editingTabsRow}>
+            <View style={styles.editingTabItem}>
+              <Text style={styles.editingTabText}>Editando informações</Text>
+            </View>
+          </View>
+          <View style={styles.editingContentContainer}>
+            <EditProfileTab
+              personalData={personalData}
+              addressData={addressData}
+              onSave={(newPersonalData, newAddressData) => {
+                console.log("Salvar dados:", newPersonalData, newAddressData);
+                setIsEditing(false);
+              }}
+              isEditing={isEditing}
+            />
+          </View>
+        </View>
+      )}
       <View style={styles.exitButtonContainer}>
         {!isEditing ? (
           <Pressable
@@ -343,6 +355,32 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontFamily: "Poppins_600SemiBold",
     fontSize: 16,
+  },
+  editingTabsContainer: {
+    width: "100%",
+  },
+  editingTabsRow: {
+    flexDirection: "row",
+    gap: 20,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  editingTabItem: {
+    alignItems: "flex-start",
+    paddingBottom: 8,
+  },
+  editingTabText: {
+    fontSize: 16,
+    fontFamily: "Poppins_600SemiBold",
+    color: "#FFFFFF",
+  },
+  editingContentContainer: {
+    marginTop: 12,
+    backgroundColor: "#2A2A2A",
+    height: 350,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
   },
 });
 
