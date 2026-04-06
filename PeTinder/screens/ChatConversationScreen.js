@@ -21,6 +21,7 @@ import * as MediaLibrary from "expo-media-library";
 import { useRoute } from "@react-navigation/native";
 import { CustomHeader } from "../components/CustomHeader";
 import { getAuthSession } from "../storage/authSession";
+import api from "../api";
 import {
   buildDirectChatId,
   markChatAsRead,
@@ -154,11 +155,62 @@ const RECORDING_OPTIONS = {
   },
 };
 
+const extractAiResponseText = (responseData) => {
+  if (typeof responseData === "string") {
+    return responseData.trim();
+  }
+
+  if (!responseData || typeof responseData !== "object") {
+    return "";
+  }
+
+  return String(
+    responseData?.message
+      || responseData?.resposta
+      || responseData?.response
+      || responseData?.reply
+      || responseData?.content
+      || "",
+  ).trim();
+};
+
+const generateConversationId = () =>
+  `conv-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+const getAiChatEndpoint = () => {
+  const apiUrl = String(process.env.EXPO_PUBLIC_API_URL || "").trim();
+  const baseWithoutApi = apiUrl.replace(/\/api\/?$/i, "");
+
+  if (!baseWithoutApi) {
+    return "/chat";
+  }
+
+  return `${baseWithoutApi}/chat`;
+};
+
+const buildAiErrorMessage = (error) => {
+  const statusCode = Number(error?.response?.status || 0);
+
+  if (statusCode === 429) {
+    return "Estou com muitas requisicoes agora. Tente novamente em alguns segundos.";
+  }
+
+  if (statusCode >= 500) {
+    return "Estou indisponivel no momento. Tente novamente em instantes.";
+  }
+
+  return "Nao consegui responder agora. Pode tentar de novo?";
+};
+
 const ChatConversationScreen = ({ navigation }) => {
   const route = useRoute();
   const userName = route.params?.userName || "Usuário";
   const chatId = route.params?.chatId || "";
   const participantId = route.params?.participantId || null;
+  const isAiChat = Boolean(route.params?.isAiChat);
+  const aiConversationIdRef = useRef(
+    String(route.params?.aiConversationId || "") || generateConversationId(),
+  );
   const [currentUserId, setCurrentUserId] = useState(
     route.params?.currentUserId || "mock-user-id",
   );
@@ -181,12 +233,14 @@ const ChatConversationScreen = ({ navigation }) => {
   const [focusedImageUri, setFocusedImageUri] = useState("");
   const [isDownloadingImage, setIsDownloadingImage] = useState(false);
   const [isOtherTyping, setIsOtherTyping] = useState(false);
+  const [isAnimatingAiResponse, setIsAnimatingAiResponse] = useState(false);
   const listRef = useRef(null);
   const recordingRef = useRef(null);
   const recordingTimerRef = useRef(null);
   const soundRef = useRef(null);
   const lastMarkedMessageIdRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const aiResponseTimerRef = useRef(null);
   const isTypingRef = useRef(false);
   const isRecordPressActiveRef = useRef(false);
   const isRecordStartInProgressRef = useRef(false);
@@ -214,6 +268,10 @@ const ChatConversationScreen = ({ navigation }) => {
   }, []);
 
   useEffect(() => {
+    if (!hasRequiredFirebaseConfig) {
+      return () => {};
+    }
+
     markChatAsRead(resolvedChatId, currentUserId).catch(() => {});
 
     const unsubscribe = subscribeToMessages(
@@ -239,6 +297,10 @@ const ChatConversationScreen = ({ navigation }) => {
   }, [resolvedChatId, currentUserId]);
 
   useEffect(() => {
+    if (isAiChat || !hasRequiredFirebaseConfig) {
+      return () => {};
+    }
+
     const unsubscribe = subscribeToChat(
       resolvedChatId,
       (chat) => {
@@ -253,7 +315,7 @@ const ChatConversationScreen = ({ navigation }) => {
     return () => {
       unsubscribe();
     };
-  }, [resolvedChatId, participantId]);
+  }, [resolvedChatId, participantId, isAiChat]);
 
   useEffect(() => {
     if (!isOtherTyping) {
@@ -285,15 +347,21 @@ const ChatConversationScreen = ({ navigation }) => {
         clearTimeout(typingTimeoutRef.current);
       }
 
+      if (aiResponseTimerRef.current) {
+        clearInterval(aiResponseTimerRef.current);
+      }
+
       if (isTypingRef.current) {
-        setTypingStatus({
-          chatId: resolvedChatId,
-          userId: currentUserId,
-          isTyping: false,
-          participantId,
-          userName: currentUserName,
-          participantName: userName,
-        }).catch(() => {});
+        if (!isAiChat) {
+          setTypingStatus({
+            chatId: resolvedChatId,
+            userId: currentUserId,
+            isTyping: false,
+            participantId,
+            userName: currentUserName,
+            participantName: userName,
+          }).catch(() => {});
+        }
       }
 
       if (recordingTimerRef.current) {
@@ -308,7 +376,54 @@ const ChatConversationScreen = ({ navigation }) => {
         soundRef.current.unloadAsync().catch(() => {});
       }
     };
-  }, [resolvedChatId, currentUserId, participantId, currentUserName, userName]);
+  }, [resolvedChatId, currentUserId, participantId, currentUserName, userName, isAiChat]);
+
+  const animateAiResponseMessage = (messageId, fullText) =>
+    new Promise((resolve) => {
+      if (!messageId || !fullText) {
+        setIsAnimatingAiResponse(false);
+        resolve();
+        return;
+      }
+
+      if (aiResponseTimerRef.current) {
+        clearInterval(aiResponseTimerRef.current);
+        aiResponseTimerRef.current = null;
+      }
+
+      setIsAnimatingAiResponse(true);
+      let currentIndex = 0;
+      const stepMs = 18;
+
+      aiResponseTimerRef.current = setInterval(() => {
+        currentIndex += 1;
+        const nextText = fullText.slice(0, currentIndex);
+
+        setMessages((prevMessages) =>
+          prevMessages.map((message) =>
+            message.id === messageId
+              ? {
+                ...message,
+                text: nextText,
+              }
+              : message,
+          ),
+        );
+
+        if (currentIndex % 8 === 0 || currentIndex >= fullText.length) {
+          listRef.current?.scrollToOffset({ offset: 0, animated: true });
+        }
+
+        if (currentIndex >= fullText.length) {
+          if (aiResponseTimerRef.current) {
+            clearInterval(aiResponseTimerRef.current);
+            aiResponseTimerRef.current = null;
+          }
+          setIsAnimatingAiResponse(false);
+          resolve();
+        }
+      }, stepMs);
+    });
 
   const stopRecordingTimer = () => {
     if (recordingTimerRef.current) {
@@ -511,16 +626,71 @@ const ChatConversationScreen = ({ navigation }) => {
       clearTimeout(typingTimeoutRef.current);
     }
     isTypingRef.current = false;
-    setTypingStatus({
-      chatId: resolvedChatId,
-      userId: currentUserId,
-      isTyping: false,
-      participantId,
-      userName: currentUserName,
-      participantName: userName,
-    }).catch(() => {});
+
+    if (!isAiChat) {
+      setTypingStatus({
+        chatId: resolvedChatId,
+        userId: currentUserId,
+        isTyping: false,
+        participantId,
+        userName: currentUserName,
+        participantName: userName,
+      }).catch(() => {});
+    }
 
     try {
+      if (isAiChat) {
+        if (hasRequiredFirebaseConfig) {
+          await sendMessageToChat({
+            chatId: resolvedChatId,
+            senderId: currentUserId,
+            senderName: currentUserName,
+            recipientId: "petinder-ai",
+            recipientName: "PeTinder IA",
+            messageText: trimmedMessage,
+          });
+        }
+
+        setIsOtherTyping(true);
+
+        const response = await api.post(getAiChatEndpoint(), {
+          message: trimmedMessage,
+          conversationId: aiConversationIdRef.current,
+        });
+
+        const aiResponseText = extractAiResponseText(response?.data);
+
+        if (!aiResponseText) {
+          throw new Error("A IA não retornou uma mensagem válida.");
+        }
+
+        const aiMessage = {
+          id: `ai-${Date.now()}`,
+          text: "",
+          senderId: "petinder-ai",
+          senderName: "PeTinder IA",
+          createdAt: new Date(),
+        };
+
+        setMessages((prevMessages) => [...prevMessages, aiMessage]);
+        setIsOtherTyping(false);
+        await animateAiResponseMessage(aiMessage.id, aiResponseText);
+
+        if (hasRequiredFirebaseConfig) {
+          await sendMessageToChat({
+            chatId: resolvedChatId,
+            senderId: "petinder-ai",
+            senderName: "PeTinder IA",
+            recipientId: currentUserId,
+            recipientName: currentUserName,
+            messageText: aiResponseText,
+          });
+        }
+
+        listRef.current?.scrollToOffset({ offset: 0, animated: true });
+        return;
+      }
+
       await sendMessageToChat({
         chatId: resolvedChatId,
         senderId: currentUserId,
@@ -530,11 +700,44 @@ const ChatConversationScreen = ({ navigation }) => {
         messageText: trimmedMessage,
       });
     } catch (error) {
+      if (isAiChat) {
+        const aiErrorMessage = {
+          id: `ai-error-${Date.now()}`,
+          text: buildAiErrorMessage(error),
+          senderId: "petinder-ai",
+          senderName: "PeTinder IA",
+          createdAt: new Date(),
+        };
+
+        setMessages((prevMessages) => [...prevMessages, aiErrorMessage]);
+
+        if (hasRequiredFirebaseConfig) {
+          sendMessageToChat({
+            chatId: resolvedChatId,
+            senderId: "petinder-ai",
+            senderName: "PeTinder IA",
+            recipientId: currentUserId,
+            recipientName: currentUserName,
+            messageText: aiErrorMessage.text,
+          }).catch(() => {});
+        }
+
+        listRef.current?.scrollToOffset({ offset: 0, animated: true });
+        setErrorMessage("");
+        return;
+      }
+
       setMessages((prevMessages) =>
         prevMessages.filter((message) => message.id !== optimisticMessageId),
       );
       setMessageText(trimmedMessage);
       setErrorMessage(error?.message || "Erro ao enviar mensagem.");
+    } finally {
+      if (isAiChat) {
+        if (!isAnimatingAiResponse) {
+          setIsOtherTyping(false);
+        }
+      }
     }
   };
 
@@ -831,6 +1034,10 @@ const ChatConversationScreen = ({ navigation }) => {
   const handleChangeText = (value) => {
     setMessageText(value);
 
+    if (isAiChat) {
+      return;
+    }
+
     if (!value.trim()) {
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
@@ -900,7 +1107,7 @@ const ChatConversationScreen = ({ navigation }) => {
       <View style={styles.root}>
         <CustomHeader onBack={() => navigation.goBack()} title={userName} />
 
-        {!hasRequiredFirebaseConfig && (
+        {!isAiChat && !hasRequiredFirebaseConfig && (
           <Text style={styles.hintText}>
             Firebase não configurado. Defina EXPO_PUBLIC_FIREBASE_* no .env.
           </Text>
@@ -996,35 +1203,39 @@ const ChatConversationScreen = ({ navigation }) => {
         )}
 
         <View style={styles.inputRow}>
-          <Pressable
-            onPressIn={handleRecordPressIn}
-            onPressOut={handleRecordPressOut}
-            style={({ pressed }) => [
-              styles.recordButton,
-              isRecordingAudio && styles.recordButtonActive,
-              pressed && styles.sendButtonPressed,
-              (isSendingAudio || isSendingImage) && styles.sendButtonDisabled,
-            ]}
-            disabled={isSendingAudio || isSendingImage}
-          >
-            <MaterialIcons
-              name={isRecordingAudio ? "graphic-eq" : "mic"}
-              size={20}
-              color="#FFFFFF"
-            />
-          </Pressable>
+          {!isAiChat && (
+            <Pressable
+              onPressIn={handleRecordPressIn}
+              onPressOut={handleRecordPressOut}
+              style={({ pressed }) => [
+                styles.recordButton,
+                isRecordingAudio && styles.recordButtonActive,
+                pressed && styles.sendButtonPressed,
+                (isSendingAudio || isSendingImage) && styles.sendButtonDisabled,
+              ]}
+              disabled={isSendingAudio || isSendingImage}
+            >
+              <MaterialIcons
+                name={isRecordingAudio ? "graphic-eq" : "mic"}
+                size={20}
+                color="#FFFFFF"
+              />
+            </Pressable>
+          )}
 
-          <Pressable
-            onPress={handleOpenImageOptions}
-            style={({ pressed }) => [
-              styles.attachButton,
-              pressed && styles.sendButtonPressed,
-              isSendingImage && styles.sendButtonDisabled,
-            ]}
-            disabled={isSendingImage}
-          >
-            <MaterialIcons name="image" size={20} color="#FFFFFF" />
-          </Pressable>
+          {!isAiChat && (
+            <Pressable
+              onPress={handleOpenImageOptions}
+              style={({ pressed }) => [
+                styles.attachButton,
+                pressed && styles.sendButtonPressed,
+                isSendingImage && styles.sendButtonDisabled,
+              ]}
+              disabled={isSendingImage}
+            >
+              <MaterialIcons name="image" size={20} color="#FFFFFF" />
+            </Pressable>
+          )}
 
           <TextInput
             value={messageText}
@@ -1038,9 +1249,9 @@ const ChatConversationScreen = ({ navigation }) => {
             style={({ pressed }) => [
               styles.sendButton,
               pressed && styles.sendButtonPressed,
-              (isSendingAudio || isSendingImage) && styles.sendButtonDisabled,
+              (isSendingAudio || isSendingImage || isOtherTyping || isAnimatingAiResponse) && styles.sendButtonDisabled,
             ]}
-            disabled={isSendingAudio || isSendingImage}
+            disabled={isSendingAudio || isSendingImage || isOtherTyping || isAnimatingAiResponse}
           >
             <Text style={styles.sendButtonText}>Enviar</Text>
           </Pressable>

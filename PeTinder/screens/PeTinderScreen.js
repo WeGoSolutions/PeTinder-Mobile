@@ -398,8 +398,25 @@ const PeTinderScreen = ({ navigation, route }) => {
     setCurrentPetIndex((prevIndex) => (prevIndex + 1) % pets.length);
   };
 
-  const handleGreenAction = () => {
-    handleToggleLike();
+  const handleGreenAction = async () => {
+    const selectedPet = pets[currentPetIndex];
+
+    if (!selectedPet?.id) {
+      return;
+    }
+
+    try {
+      const userId = await getAuthUserId();
+
+      if (!userId) {
+        return;
+      }
+
+      await api.post(`/status/pending/${selectedPet.id}/${userId}`);
+      navigation.navigate('Chat', { title: 'Chat' });
+    } catch (error) {
+      console.error('Erro ao criar pendencia de chat:', error?.response?.data || error?.message);
+    }
   };
 
   const handleRedAction = () => {
@@ -410,6 +427,10 @@ const PeTinderScreen = ({ navigation, route }) => {
 
     goToNextPet();
   };
+
+  const handleOverlayLikeAction = isFocusedLikedPet
+    ? handleGreenAction
+    : handleToggleLike;
 
   return (
     <View style={styles.root}>
@@ -463,7 +484,7 @@ const PeTinderScreen = ({ navigation, route }) => {
                   onToggleDetails={handleToggleDetails}
                   liked={Boolean(currentPet?.liked)}
                   likesCount={Number(currentPet?.likes) || 0}
-                  onToggleLike={handleToggleLike}
+                  onToggleLike={handleOverlayLikeAction}
                 />
               )}
             </PetImageCarousel>
@@ -473,7 +494,7 @@ const PeTinderScreen = ({ navigation, route }) => {
               pet={currentPet}
               liked={Boolean(currentPet?.liked)}
               likesCount={Number(currentPet?.likes) || 0}
-              onToggleLike={handleToggleLike}
+              onToggleLike={handleOverlayLikeAction}
               onClose={handleCloseDetails}
             />
 

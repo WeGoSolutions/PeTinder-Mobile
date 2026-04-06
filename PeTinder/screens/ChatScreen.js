@@ -282,6 +282,17 @@ const ChatScreen = ({ navigation }) => {
     });
   };
 
+  const openAiConversation = () => {
+    navigation.navigate('ChatConversation', {
+      chatId: `ai-chat-${String(currentUserId || 'anon')}`,
+      userName: 'PeTinder IA',
+      participantId: null,
+      currentUserId,
+      currentUserName,
+      isAiChat: true,
+    });
+  };
+
   return (
     <View style={styles.root}>
       <CustomHeader onBack={() => navigation.goBack()} title={title} />
@@ -331,7 +342,7 @@ const ChatScreen = ({ navigation }) => {
       )}
 
       <View style={[styles.aiButtonWrapper, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-        <AIButton />
+        <AIButton onPress={openAiConversation} />
       </View>
 
       <Modal
