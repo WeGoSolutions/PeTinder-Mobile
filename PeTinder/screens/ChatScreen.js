@@ -1,12 +1,25 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  ActivityIndicator,
+  Pressable,
+  Modal,
+  TextInput,
+} from 'react-native';
 import { useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CustomHeader } from '../components/CustomHeader';
 import ChatCard from '../components/Chat/ChatCard';
 import api from '../api';
 import { getAuthSession } from '../storage/authSession';
-import { buildDirectChatId, subscribeToUserChats } from '../services/chatFirebase';
+import {
+  buildDirectChatId,
+  createGroupChat,
+  subscribeToUserChats,
+} from '../services/chatFirebase';
 import { hasRequiredFirebaseConfig } from '../services/firebase';
 import AIButton from '../components/Chat/AIButton';
 
@@ -63,6 +76,11 @@ const ChatScreen = ({ navigation }) => {
   const [currentUserName, setCurrentUserName] = useState('Você');
   const [apiError, setApiError] = useState('');
   const [firebaseError, setFirebaseError] = useState('');
+  const [isGroupModalVisible, setIsGroupModalVisible] = useState(false);
+  const [groupName, setGroupName] = useState('');
+  const [selectedGroupUserIds, setSelectedGroupUserIds] = useState([]);
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [groupCreateError, setGroupCreateError] = useState('');
 
   useEffect(() => {
     setIsLoading(!(isUsersLoaded && isChatsLoaded));
@@ -122,29 +140,137 @@ const ChatScreen = ({ navigation }) => {
   }, []);
 
   const chatList = useMemo(
-    () => users
-      .filter((user) => String(user?.id || '') !== String(currentUserId || ''))
-      .map((user) => {
-        const participantId = String(user?.id || '').trim();
-        const chatId = buildDirectChatId(currentUserId, participantId);
-        const firebaseChat = firebaseChatsById[chatId];
+    () => {
+      const directChats = users
+        .filter((user) => String(user?.id || '') !== String(currentUserId || ''))
+        .map((user) => {
+          const participantId = String(user?.id || '').trim();
+          const chatId = buildDirectChatId(currentUserId, participantId);
+          const firebaseChat = firebaseChatsById[chatId];
 
-        return {
-          id: chatId || participantId,
-          chatId,
-          participantId,
-          name: user?.nome || 'Usuário',
-          lastMessage: firebaseChat?.lastMessage || 'Toque para iniciar conversa',
-          isLastMessageMine: String(firebaseChat?.lastMessageSenderId || '') === String(currentUserId || ''),
-          avatar: user?.imagemUrl || null,
-          lastMessageAt: timestampToMillis(firebaseChat?.updatedAt || firebaseChat?.createdAt),
-          unreadCount: Number(firebaseChat?.unreadCountByUser?.[currentUserId] || 0),
-        };
-      })
-      .filter((item) => Boolean(item.participantId))
-      .sort((a, b) => b.lastMessageAt - a.lastMessageAt),
+          return {
+            id: chatId || participantId,
+            chatId,
+            participantId,
+            name: user?.nome || 'Usuário',
+            lastMessage: firebaseChat?.lastMessage || 'Toque para iniciar conversa',
+            isLastMessageMine: String(firebaseChat?.lastMessageSenderId || '') === String(currentUserId || ''),
+            avatar: user?.imagemUrl || null,
+            lastMessageAt: timestampToMillis(firebaseChat?.updatedAt || firebaseChat?.createdAt),
+            unreadCount: Number(firebaseChat?.unreadCountByUser?.[currentUserId] || 0),
+            isGroup: false,
+          };
+        })
+        .filter((item) => Boolean(item.participantId));
+
+      const groupChats = Object.values(firebaseChatsById)
+        .filter((chat) => Boolean(chat?.isGroup))
+        .map((chat) => ({
+          id: chat.id,
+          chatId: chat.id,
+          participantId: null,
+          name: chat?.groupName || 'Grupo sem nome',
+          lastMessage: chat?.lastMessage || 'Grupo criado',
+          isLastMessageMine: String(chat?.lastMessageSenderId || '') === String(currentUserId || ''),
+          avatar: null,
+          lastMessageAt: timestampToMillis(chat?.updatedAt || chat?.createdAt),
+          unreadCount: Number(chat?.unreadCountByUser?.[currentUserId] || 0),
+          isGroup: true,
+        }));
+
+      const mergedById = new Map();
+
+      [...directChats, ...groupChats].forEach((item) => {
+        mergedById.set(item.id, item);
+      });
+
+      return Array.from(mergedById.values()).sort((a, b) => b.lastMessageAt - a.lastMessageAt);
+    },
     [users, currentUserId, firebaseChatsById],
   );
+
+  const selectableUsers = useMemo(
+    () => users
+      .filter((user) => String(user?.id || '') !== String(currentUserId || ''))
+      .map((user) => ({
+        id: String(user?.id || '').trim(),
+        name: user?.nome || 'Usuário',
+      }))
+      .filter((user) => Boolean(user.id)),
+    [users, currentUserId],
+  );
+
+  const toggleGroupUser = (userId) => {
+    setSelectedGroupUserIds((prevSelected) => {
+      if (prevSelected.includes(userId)) {
+        return prevSelected.filter((id) => id !== userId);
+      }
+
+      return [...prevSelected, userId];
+    });
+  };
+
+  const openGroupModal = () => {
+    setGroupCreateError('');
+    setGroupName('');
+    setSelectedGroupUserIds([]);
+    setIsGroupModalVisible(true);
+  };
+
+  const closeGroupModal = () => {
+    if (isCreatingGroup) {
+      return;
+    }
+
+    setIsGroupModalVisible(false);
+  };
+
+  const handleCreateGroup = async () => {
+    if (!hasRequiredFirebaseConfig) {
+      setGroupCreateError('Firebase não configurado para criar grupos.');
+      return;
+    }
+
+    const trimmedName = String(groupName || '').trim();
+
+    if (!trimmedName) {
+      setGroupCreateError('Informe um nome para o grupo.');
+      return;
+    }
+
+    if (!selectedGroupUserIds.length) {
+      setGroupCreateError('Selecione pelo menos uma pessoa para o grupo.');
+      return;
+    }
+
+    try {
+      setIsCreatingGroup(true);
+      setGroupCreateError('');
+
+      const selectedUsers = selectableUsers.filter((user) => selectedGroupUserIds.includes(user.id));
+
+      const createdGroup = await createGroupChat({
+        groupName: trimmedName,
+        creatorId: String(currentUserId || ''),
+        creatorName: currentUserName || 'Você',
+        selectedUsers,
+      });
+
+      setIsGroupModalVisible(false);
+
+      navigation.navigate('ChatConversation', {
+        chatId: createdGroup.chatId,
+        userName: createdGroup.groupName,
+        participantId: null,
+        currentUserId,
+        currentUserName,
+      });
+    } catch (error) {
+      setGroupCreateError(error?.message || 'Não foi possível criar o grupo.');
+    } finally {
+      setIsCreatingGroup(false);
+    }
+  };
 
   const openConversation = (chat) => {
     navigation.navigate('ChatConversation', {
@@ -159,7 +285,15 @@ const ChatScreen = ({ navigation }) => {
   return (
     <View style={styles.root}>
       <CustomHeader onBack={() => navigation.goBack()} title={title} />
-      <Text style={styles.text}>Conversas</Text>
+      <View style={styles.headerRow}>
+        <Text style={styles.text}>Conversas</Text>
+        <Pressable
+          style={({ pressed }) => [styles.groupButton, pressed && styles.groupButtonPressed]}
+          onPress={openGroupModal}
+        >
+          <Text style={styles.groupButtonText}>Novo grupo</Text>
+        </Pressable>
+      </View>
 
       {!hasRequiredFirebaseConfig && (
         <Text style={styles.hintText}>
@@ -192,13 +326,89 @@ const ChatScreen = ({ navigation }) => {
           )}
           contentContainerStyle={styles.listContent}
           style={styles.list}
-          ListEmptyComponent={<Text style={styles.loadingText}>Nenhum usuário encontrado.</Text>}
+          ListEmptyComponent={<Text style={styles.loadingText}>Nenhuma conversa encontrada.</Text>}
         />
       )}
 
       <View style={[styles.aiButtonWrapper, { paddingBottom: Math.max(insets.bottom, 10) }]}>
         <AIButton />
       </View>
+
+      <Modal
+        visible={isGroupModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeGroupModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Criar grupo</Text>
+
+            <TextInput
+              value={groupName}
+              onChangeText={setGroupName}
+              placeholder="Nome do grupo"
+              placeholderTextColor="#9A9A9A"
+              style={styles.groupNameInput}
+              editable={!isCreatingGroup}
+            />
+
+            <Text style={styles.modalSectionTitle}>Selecione os participantes</Text>
+
+            <FlatList
+              data={selectableUsers}
+              keyExtractor={(item) => item.id}
+              style={styles.usersList}
+              contentContainerStyle={styles.usersListContent}
+              renderItem={({ item }) => {
+                const isSelected = selectedGroupUserIds.includes(item.id);
+
+                return (
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.userRow,
+                      isSelected && styles.userRowSelected,
+                      pressed && styles.userRowPressed,
+                    ]}
+                    onPress={() => toggleGroupUser(item.id)}
+                    disabled={isCreatingGroup}
+                  >
+                    <Text style={styles.userRowName}>{item.name}</Text>
+                    <Text style={styles.userRowCheck}>{isSelected ? '✓' : ''}</Text>
+                  </Pressable>
+                );
+              }}
+              ListEmptyComponent={<Text style={styles.modalHint}>Nenhum usuário disponível.</Text>}
+            />
+
+            {Boolean(groupCreateError) && <Text style={styles.modalError}>{groupCreateError}</Text>}
+
+            <View style={styles.modalActions}>
+              <Pressable
+                style={({ pressed }) => [styles.modalCancelButton, pressed && styles.modalButtonPressed]}
+                onPress={closeGroupModal}
+                disabled={isCreatingGroup}
+              >
+                <Text style={styles.modalCancelText}>Cancelar</Text>
+              </Pressable>
+
+              <Pressable
+                style={({ pressed }) => [
+                  styles.modalCreateButton,
+                  pressed && styles.modalButtonPressed,
+                  isCreatingGroup && styles.modalCreateButtonDisabled,
+                ]}
+                onPress={handleCreateGroup}
+                disabled={isCreatingGroup}
+              >
+                <Text style={styles.modalCreateText}>
+                  {isCreatingGroup ? 'Criando...' : 'Criar grupo'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -210,12 +420,33 @@ const styles = StyleSheet.create({
     // alignItems: 'center',
   },
   text: {
-    marginLeft: 20,
     marginTop: 20,
     marginBottom: 10,
     fontSize: 28,
     fontFamily: 'Poppins_600SemiBold',
     color: '#FFFFFF',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+  },
+  groupButton: {
+    backgroundColor: '#2B2B2B',
+    borderWidth: 1,
+    borderColor: '#4A4A4A',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  groupButtonPressed: {
+    opacity: 0.85,
+  },
+  groupButtonText: {
+    color: '#FFFFFF',
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 12,
   },
   list: {
     marginBottom: 115,
@@ -250,6 +481,126 @@ const styles = StyleSheet.create({
     right: 16,
     bottom: 0,
     backgroundColor: '#1A1A1A',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  modalContainer: {
+    backgroundColor: '#1F1F1F',
+    borderRadius: 18,
+    padding: 16,
+    maxHeight: '82%',
+  },
+  modalTitle: {
+    color: '#FFFFFF',
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 20,
+    marginBottom: 12,
+  },
+  groupNameInput: {
+    borderWidth: 1,
+    borderColor: '#3B3B3B',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: '#FFFFFF',
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 14,
+    backgroundColor: '#2A2A2A',
+    marginBottom: 12,
+  },
+  modalSectionTitle: {
+    color: '#FFFFFF',
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  usersList: {
+    maxHeight: 240,
+  },
+  usersListContent: {
+    gap: 8,
+    paddingBottom: 6,
+  },
+  userRow: {
+    backgroundColor: '#2B2B2B',
+    borderWidth: 1,
+    borderColor: '#3A3A3A',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  userRowSelected: {
+    borderColor: '#FFC0D9',
+    backgroundColor: '#3A2A32',
+  },
+  userRowPressed: {
+    opacity: 0.85,
+  },
+  userRowName: {
+    color: '#FFFFFF',
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 14,
+    flex: 1,
+  },
+  userRowCheck: {
+    color: '#FFC0D9',
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 16,
+    marginLeft: 8,
+  },
+  modalHint: {
+    color: '#BFBFBF',
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 12,
+    marginVertical: 8,
+  },
+  modalError: {
+    color: '#FF7F7F',
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 12,
+    marginTop: 10,
+  },
+  modalActions: {
+    marginTop: 14,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  modalCancelButton: {
+    borderWidth: 1,
+    borderColor: '#555',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  modalCancelText: {
+    color: '#FFFFFF',
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 13,
+  },
+  modalCreateButton: {
+    backgroundColor: '#FFC0D9',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  modalCreateButtonDisabled: {
+    opacity: 0.7,
+  },
+  modalCreateText: {
+    color: '#1A1A1A',
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 13,
+  },
+  modalButtonPressed: {
+    opacity: 0.85,
   },
   hintText: {
     color: '#CFCFCF',

@@ -2,6 +2,7 @@ import {
   addDoc,
   collection,
   doc,
+  getDoc,
   increment,
   onSnapshot,
   orderBy,
@@ -11,7 +12,176 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore';
-import { db, hasRequiredFirebaseConfig } from './firebase';
+import { getDownloadURL, ref, uploadString } from 'firebase/storage';
+import * as FileSystem from 'expo-file-system/legacy';
+import { Platform } from 'react-native';
+import { db, hasRequiredFirebaseConfig, storage } from './firebase';
+
+const SHOULD_UPLOAD_AUDIO_TO_STORAGE = Platform.OS === 'web';
+
+const inferAudioExtension = (audioDataUrl) => {
+  const normalized = String(audioDataUrl || '').toLowerCase();
+
+  if (normalized.includes('audio/x-caf')) {
+    return 'caf';
+  }
+
+  if (normalized.includes('audio/wav')) {
+    return 'wav';
+  }
+
+  if (normalized.includes('audio/mpeg')) {
+    return 'mp3';
+  }
+
+  if (normalized.includes('audio/ogg')) {
+    return 'ogg';
+  }
+
+  return 'm4a';
+};
+
+const uploadAudioDataUrl = async ({ audioDataUrl, chatId, senderId }) => {
+  const normalizedAudioDataUrl = String(audioDataUrl || '').trim();
+
+  if (!normalizedAudioDataUrl) {
+    return null;
+  }
+
+  if (!storage) {
+    throw new Error('Storage do Firebase não configurado para envio de áudio.');
+  }
+
+  const extension = inferAudioExtension(normalizedAudioDataUrl);
+  const filePath = `chat-audios/${chatId}/${Date.now()}-${String(senderId)}.${extension}`;
+  const audioRef = ref(storage, filePath);
+
+  await uploadString(audioRef, normalizedAudioDataUrl, 'data_url');
+  return getDownloadURL(audioRef);
+};
+
+const uploadAudioFileUri = async ({ audioFileUri, audioMimeType, chatId, senderId }) => {
+  const normalizedAudioUri = String(audioFileUri || '').trim();
+
+  if (!normalizedAudioUri) {
+    return null;
+  }
+
+  if (!storage) {
+    throw new Error('Storage do Firebase não configurado para envio de áudio.');
+  }
+
+  const extension = inferAudioExtension(audioMimeType || normalizedAudioUri);
+  const filePath = `chat-audios/${chatId}/${Date.now()}-${String(senderId)}.${extension}`;
+  const audioRef = ref(storage, filePath);
+
+  const base64Encoding = FileSystem?.EncodingType?.Base64 || 'base64';
+  const audioBase64 = await FileSystem.readAsStringAsync(normalizedAudioUri, {
+    encoding: base64Encoding,
+  });
+
+  if (!audioBase64) {
+    throw new Error('Não foi possível ler o arquivo de áudio para upload.');
+  }
+
+  await uploadString(audioRef, audioBase64, 'base64', {
+    contentType: audioMimeType || 'audio/m4a',
+  });
+
+  return getDownloadURL(audioRef);
+};
+
+const readAudioFileAsDataUrl = async ({ audioFileUri, audioMimeType }) => {
+  const normalizedAudioUri = String(audioFileUri || '').trim();
+
+  if (!normalizedAudioUri) {
+    return null;
+  }
+
+  const base64Encoding = FileSystem?.EncodingType?.Base64 || 'base64';
+  const audioBase64 = await FileSystem.readAsStringAsync(normalizedAudioUri, {
+    encoding: base64Encoding,
+  });
+
+  if (!audioBase64) {
+    return null;
+  }
+
+  const normalizedMime = String(audioMimeType || '').trim() || 'audio/m4a';
+  return `data:${normalizedMime};base64,${audioBase64}`;
+};
+
+export const createGroupChat = async ({
+  groupName,
+  creatorId,
+  creatorName,
+  selectedUsers = [],
+}) => {
+  if (!hasRequiredFirebaseConfig || !db) {
+    throw new Error('Firebase não configurado no app.');
+  }
+
+  const trimmedGroupName = String(groupName || '').trim();
+
+  if (!trimmedGroupName) {
+    throw new Error('Informe um nome para o grupo.');
+  }
+
+  const normalizedUsers = selectedUsers
+    .filter((item) => Boolean(item?.id))
+    .map((item) => ({
+      id: String(item.id),
+      name: item?.name || 'Usuário',
+    }));
+
+  const participants = [...new Set([String(creatorId), ...normalizedUsers.map((item) => item.id)])].sort();
+
+  if (participants.length < 2) {
+    throw new Error('Selecione pelo menos uma pessoa para criar o grupo.');
+  }
+
+  const participantNames = normalizedUsers.reduce(
+    (accumulator, user) => ({
+      ...accumulator,
+      [user.id]: user.name,
+    }),
+    {
+      [String(creatorId)]: creatorName || 'Você',
+    },
+  );
+
+  const unreadCountByUser = participants.reduce(
+    (accumulator, participantId) => ({
+      ...accumulator,
+      [participantId]: 0,
+    }),
+    {},
+  );
+
+  const lastReadAtByUser = {
+    [String(creatorId)]: serverTimestamp(),
+  };
+
+  const docRef = await addDoc(collection(db, 'chats'), {
+    isGroup: true,
+    groupName: trimmedGroupName,
+    participants,
+    participantNames,
+    unreadCountByUser,
+    lastReadAtByUser,
+    createdBy: String(creatorId),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    lastMessage: 'Grupo criado',
+    lastMessageSenderId: String(creatorId),
+  });
+
+  return {
+    chatId: docRef.id,
+    groupName: trimmedGroupName,
+    participants,
+  };
+};
 
 export const buildDirectChatId = (userAId, userBId) => {
   const a = String(userAId || '').trim();
@@ -129,27 +299,66 @@ export const sendMessageToChat = async ({
   recipientId,
   recipientName,
   messageText,
+  imageDataUrl,
+  audioDataUrl,
+  audioFileUri,
+  audioMimeType,
+  audioDurationMs,
 }) => {
   if (!hasRequiredFirebaseConfig || !db) {
     throw new Error('Firebase não configurado no app.');
   }
 
   const trimmedMessage = String(messageText || '').trim();
+  const normalizedImageDataUrl = String(imageDataUrl || '').trim();
+  const normalizedAudioDataUrl = String(audioDataUrl || '').trim();
+  const normalizedAudioFileUri = String(audioFileUri || '').trim();
+  const hasText = Boolean(trimmedMessage);
+  const hasImage = Boolean(normalizedImageDataUrl);
+  const hasAudio = Boolean(normalizedAudioDataUrl || normalizedAudioFileUri);
 
-  if (!trimmedMessage || !chatId || !senderId) {
+  if ((!hasText && !hasImage && !hasAudio) || !chatId || !senderId) {
     return;
   }
 
-  const participants = [...new Set([senderId, recipientId].filter(Boolean).map(String))].sort();
-  const participantNames = {
-    [senderId]: senderName || 'Você',
-  };
-
-  if (recipientId) {
-    participantNames[recipientId] = recipientName || 'Usuário';
-  }
+  const senderIdAsString = String(senderId);
+  const recipientIdAsString = recipientId ? String(recipientId) : null;
 
   const chatRef = doc(db, 'chats', chatId);
+  const chatSnapshot = await getDoc(chatRef);
+  const existingChat = chatSnapshot.exists() ? chatSnapshot.data() : null;
+
+  const existingParticipants = Array.isArray(existingChat?.participants)
+    ? existingChat.participants.map((item) => String(item))
+    : [];
+
+  const participants = existingParticipants.length
+    ? [...new Set(existingParticipants)]
+    : [...new Set([senderIdAsString, recipientIdAsString].filter(Boolean))].sort();
+
+  const existingParticipantNames = existingChat?.participantNames || {};
+  const participantNames = {
+    ...existingParticipantNames,
+    [senderIdAsString]: senderName || existingParticipantNames?.[senderIdAsString] || 'Você',
+    ...(recipientIdAsString
+      ? {
+        [recipientIdAsString]:
+            recipientName
+            || existingParticipantNames?.[recipientIdAsString]
+            || 'Usuário',
+      }
+      : {}),
+  };
+
+  const unreadUpdates = participants.reduce((accumulator, participant) => {
+    if (participant === senderIdAsString) {
+      accumulator[`unreadCountByUser.${participant}`] = 0;
+      return accumulator;
+    }
+
+    accumulator[`unreadCountByUser.${participant}`] = increment(1);
+    return accumulator;
+  }, {});
 
   await setDoc(
     chatRef,
@@ -161,21 +370,94 @@ export const sendMessageToChat = async ({
     { merge: true },
   );
 
+  let finalAudioUrl = null;
+
+  if (hasAudio) {
+    if (!SHOULD_UPLOAD_AUDIO_TO_STORAGE) {
+      if (normalizedAudioFileUri) {
+        finalAudioUrl = await readAudioFileAsDataUrl({
+          audioFileUri: normalizedAudioFileUri,
+          audioMimeType,
+        });
+      }
+
+      if (!finalAudioUrl && normalizedAudioDataUrl) {
+        finalAudioUrl = normalizedAudioDataUrl;
+      }
+
+      if (!finalAudioUrl) {
+        throw new Error('Não foi possível preparar o áudio para envio.');
+      }
+    } else {
+    try {
+      if (normalizedAudioFileUri) {
+        finalAudioUrl = await uploadAudioFileUri({
+          audioFileUri: normalizedAudioFileUri,
+          audioMimeType,
+          chatId,
+          senderId: senderIdAsString,
+        });
+      } else {
+        finalAudioUrl = await uploadAudioDataUrl({
+          audioDataUrl: normalizedAudioDataUrl,
+          chatId,
+          senderId: senderIdAsString,
+        });
+      }
+    } catch (error) {
+      if (normalizedAudioFileUri) {
+        const fallbackDataUrl = await readAudioFileAsDataUrl({
+          audioFileUri: normalizedAudioFileUri,
+          audioMimeType,
+        });
+
+        if (fallbackDataUrl) {
+          finalAudioUrl = await uploadAudioDataUrl({
+            audioDataUrl: fallbackDataUrl,
+            chatId,
+            senderId: senderIdAsString,
+          });
+        }
+      }
+
+      if (!finalAudioUrl && normalizedAudioDataUrl) {
+        finalAudioUrl = await uploadAudioDataUrl({
+          audioDataUrl: normalizedAudioDataUrl,
+          chatId,
+          senderId: senderIdAsString,
+        });
+      }
+
+      if (!finalAudioUrl) {
+        const details = [error?.code, error?.message].filter(Boolean).join(' - ');
+        throw new Error(details || 'Falha ao enviar áudio para o storage.');
+      }
+    }
+    }
+  }
+
   await addDoc(collection(db, 'chats', chatId, 'messages'), {
-    text: trimmedMessage,
+    text: hasText ? trimmedMessage : '',
+    imageUrl: hasImage ? normalizedImageDataUrl : null,
+    audioUrl: hasAudio ? finalAudioUrl : null,
+    audioDurationMs: hasAudio ? Number(audioDurationMs || 0) : 0,
+    type: hasImage ? 'image' : hasAudio ? 'audio' : 'text',
     senderId,
     senderName: senderName || 'Você',
     createdAt: serverTimestamp(),
   });
 
+  const lastMessageLabel = hasAudio
+    ? '🎤 Áudio'
+    : hasImage
+    ? (hasText ? `📷 ${trimmedMessage}` : '📷 Imagem')
+    : trimmedMessage;
+
   await updateDoc(chatRef, {
-    lastMessage: trimmedMessage,
-    lastMessageSenderId: senderId,
+    lastMessage: lastMessageLabel,
+    lastMessageSenderId: senderIdAsString,
     updatedAt: serverTimestamp(),
-    [`unreadCountByUser.${senderId}`]: 0,
-    ...(recipientId
-      ? { [`unreadCountByUser.${recipientId}`]: increment(1) }
-      : {}),
+    ...unreadUpdates,
   });
 };
 
@@ -221,30 +503,30 @@ export const setTypingStatus = async ({
     return;
   }
 
-  const participants = [userId, participantId].filter(Boolean).map(String);
-  const participantNames = {
-    [userId]: userName || 'Você',
+  const userIdAsString = String(userId);
+  const payload = {
+    createdAt: serverTimestamp(),
+    typingByUser: {
+      [userIdAsString]: Boolean(isTyping),
+    },
+    typingUpdatedAtByUser: {
+      [userIdAsString]: serverTimestamp(),
+    },
   };
 
   if (participantId) {
-    participantNames[String(participantId)] = participantName || 'Usuário';
+    payload.participants = [userIdAsString, String(participantId)].filter(Boolean);
+    payload.participantNames = {
+      [userIdAsString]: userName || 'Você',
+      [String(participantId)]: participantName || 'Usuário',
+    };
   }
 
   const chatRef = doc(db, 'chats', chatId);
 
   await setDoc(
     chatRef,
-    {
-      participants,
-      participantNames,
-      createdAt: serverTimestamp(),
-      typingByUser: {
-        [userId]: Boolean(isTyping),
-      },
-      typingUpdatedAtByUser: {
-        [userId]: serverTimestamp(),
-      },
-    },
+    payload,
     { merge: true },
   );
 };
