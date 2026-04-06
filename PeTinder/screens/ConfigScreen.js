@@ -1,7 +1,7 @@
 ConfigScreen;
 
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import { View, Text, StyleSheet, Pressable, KeyboardAvoidingView, Platform } from "react-native";
 import { useRoute } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { CustomHeader } from "../components/CustomHeader";
@@ -126,22 +126,22 @@ const ConfigScreen = ({ navigation }) => {
         <ContaTab personalData={personalData} addressData={addressData} />
       ),
     },
-    {
-      label: "Configurações",
-      content: (
-        <View>
-          <Text style={styles.tabTitle}>Configurações</Text>
-        </View>
-      ),
-    },
-    {
-      label: "Ajuda",
-      content: (
-        <View>
-          <Text style={styles.tabTitle}>Ajuda</Text>
-        </View>
-      ),
-    },
+    // {
+    //   label: "Configurações",
+    //   content: (
+    //     <View>
+    //       <Text style={styles.tabTitle}>Configurações</Text>
+    //     </View>
+    //   ),
+    // },
+    // {
+    //   label: "Ajuda",
+    //   content: (
+    //     <View>
+    //       <Text style={styles.tabTitle}>Ajuda</Text>
+    //     </View>
+    //   ),
+    // },
   ];
   const [activeTab, setActiveTab] = useState(tabs[0]);
   const [showExitModal, setShowExitModal] = useState(false);
@@ -172,7 +172,12 @@ const ConfigScreen = ({ navigation }) => {
           }
         />
       ) : (
-        <View style={styles.editingTabsContainer}>
+        <KeyboardAvoidingView
+          style={styles.editingTabsContainer}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 0}
+          enabled={true}
+        >
           <View style={styles.editingTabsRow}>
             <View style={styles.editingTabItem}>
               <Text style={styles.editingTabText}>Editando informações</Text>
@@ -189,36 +194,37 @@ const ConfigScreen = ({ navigation }) => {
               isEditing={isEditing}
             />
           </View>
+        </KeyboardAvoidingView>
+      )}
+      {isEditing && (
+        <View style={styles.editingButtonContainer}>
+          <Pressable
+            onPress={() => setIsEditing(false)}
+            style={styles.cancelButton}
+          >
+            <Text style={styles.cancelButtonText}>Cancelar</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              console.log("Salvar dados");
+              setIsEditing(false);
+            }}
+            style={styles.saveButton}
+          >
+            <Text style={styles.saveButtonText}>Salvar</Text>
+          </Pressable>
         </View>
       )}
-      <View style={styles.exitButtonContainer}>
-        {!isEditing ? (
+      {!isEditing && (
+        <View style={styles.exitButtonContainer}>
           <Pressable
             onPress={() => setShowExitModal(true)}
             style={styles.exitButton}
           >
             <Text style={styles.exitButtonText}>Sair da conta</Text>
           </Pressable>
-        ) : (
-          <>
-            <Pressable
-              onPress={() => setIsEditing(false)}
-              style={styles.cancelButton}
-            >
-              <Text style={styles.cancelButtonText}>Cancelar</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => {
-                console.log("Salvar dados");
-                setIsEditing(false);
-              }}
-              style={styles.saveButton}
-            >
-              <Text style={styles.saveButtonText}>Salvar</Text>
-            </Pressable>
-          </>
-        )}
-      </View>
+        </View>
+      )}
       <Modal
         visible={showExitModal}
         onClose={() => setShowExitModal(false)}
@@ -262,6 +268,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#1A1A1A",
     alignItems: "center",
+    justifyContent: "flex-start",
   },
   text: {
     fontSize: 24,
@@ -308,7 +315,7 @@ const styles = StyleSheet.create({
     color: "#FF3B3B",
   },
   saveButton: {
-    backgroundColor: "rgba(76, 175, 80, 0.25)",
+    backgroundColor: "#E8A0BF",
     paddingVertical: 12,
     paddingHorizontal: 32,
     borderRadius: 15,
@@ -316,7 +323,7 @@ const styles = StyleSheet.create({
   saveButtonText: {
     fontSize: 16,
     fontFamily: "Poppins_600SemiBold",
-    color: "#57d437",
+    color: "#000000",
   },
   modalText: {
     fontSize: 16,
@@ -358,6 +365,8 @@ const styles = StyleSheet.create({
   },
   editingTabsContainer: {
     width: "100%",
+    flex: 1,
+    flexDirection: "column",
   },
   editingTabsRow: {
     flexDirection: "row",
@@ -377,10 +386,19 @@ const styles = StyleSheet.create({
   editingContentContainer: {
     marginTop: 12,
     backgroundColor: "#2A2A2A",
-    height: 350,
+    flex: 1,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 8,
+  },
+  editingButtonContainer: {
+    width: "100%",
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-evenly",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingBottom: 20,
   },
 });
 

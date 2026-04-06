@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
+import { View, Text, StyleSheet, ScrollView } from "react-native";
 import Input from "../Input";
 
 const labelMap = {
@@ -146,40 +145,38 @@ export const EditProfileTab = ({ personalData, addressData, onSave, readOnlyFiel
     setEditedAddressData((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleSave = () => {
-    if (onSave) {
-      onSave(editedPersonalData, editedAddressData);
-    }
-  };
-
   return (
-    <View style={styles.container}>
-      <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Editando perfil</Text>
-          {renderPersonalFields(editedPersonalData, handlePersonalChange, readOnlyFields)}
-        </View>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.scrollContent}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="interactive"
+      showsVerticalScrollIndicator={false}
+    >
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Dados pessoais</Text>
+        {renderPersonalFields(editedPersonalData, handlePersonalChange, readOnlyFields, isEditing)}
+      </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Endereço</Text>
-          {renderAddressFields(editedAddressData, handleAddressChange, readOnlyFields)}
-        </View>
-      </ScrollView>
-    </View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Endereço</Text>
+        {renderAddressFields(editedAddressData, handleAddressChange, readOnlyFields, isEditing)}
+      </View>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     width: "100%",
-    height: "100%",
-  },
-  scrollContainer: {
     flex: 1,
-    paddingBottom: 100,
+  },
+  scrollContent: {
+    paddingBottom: 20,
   },
   section: {
-    marginBottom: 30,
+    marginBottom: 15,
+    paddingHorizontal: 0,
   },
   sectionTitle: {
     fontSize: 18,
@@ -204,28 +201,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: "Poppins_600SemiBold",
     color: "#FFFFFF",
-  },
-  saveButton: {
-    marginTop: 20,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 50,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  saveButtonPressable: {
-    borderRadius: 50,
-    position: "absolute",
-    bottom: 20,
-    left: 20,
-    right: 20,
-  },
-  saveButtonPressed: {
-    opacity: 0.85,
-  },
-  saveButtonText: {
-    color: "#1A1A1A",
-    fontFamily: "Poppins_600SemiBold",
-    fontSize: 16,
   },
 });
