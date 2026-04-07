@@ -1,5 +1,3 @@
-ConfigScreen;
-
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, KeyboardAvoidingView, Platform } from "react-native";
 import { useRoute } from "@react-navigation/native";

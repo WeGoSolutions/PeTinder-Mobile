@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, ScrollView } from "react-native";
+import React, { useState, useEffect, useRef } from "react";
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from "react-native";
 import Input from "../Input";
 
 const labelMap = {
@@ -14,6 +14,19 @@ const labelMap = {
   estado: "Estado",
   uf: "UF",
   cep: "CEP",
+};
+
+const formatCPF = (value) => {
+  const digits = String(value).replace(/\D/g, "").slice(0, 11);
+  return digits
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+};
+
+const formatCEP = (value) => {
+  const digits = String(value).replace(/\D/g, "").slice(0, 8);
+  return digits.replace(/(\d{5})(\d{1,3})$/, "$1-$2");
 };
 
 const parseDateValue = (value) => {
@@ -37,29 +50,91 @@ const renderPersonalFields = (data, onChange, readOnlyFields = [], isEditing = f
     return <Text style={styles.placeholder}>Sem informações</Text>;
   }
 
-  return Object.entries(data).map(([key, value]) => (
-    <View key={key} style={styles.fieldRow}>
-      {key === "dataNasc" ? (
-        <Input
-          label={labelMap.dataNasc}
-          variant="date"
-          dateValue={parseDateValue(value)}
-          onDateChange={(date) => onChange(key, date)}
-          readOnly={isEditing && readOnlyFields.includes(key)}
-        />
-      ) : (
+  return Object.entries(data).map(([key, value]) => {
+    if (key === "dataNasc") {
+      return (
+        <View key={key} style={styles.fieldRow}>
+          <Input
+            label={labelMap.dataNasc}
+            variant="date"
+            dateValue={parseDateValue(value)}
+            onDateChange={(date) => onChange(key, date)}
+            readOnly={isEditing && readOnlyFields.includes(key)}
+          />
+        </View>
+      );
+    }
+
+    if (key === "cpf") {
+      return (
+        <View key={key} style={styles.fieldRow}>
+          <Input
+            label={labelMap.cpf}
+            value={formatCPF(value)}
+            onChangeText={(text) => {
+              const digits = text.replace(/\D/g, "").slice(0, 11);
+              onChange(key, digits);
+            }}
+            keyboardType="numeric"
+            readOnly={isEditing && readOnlyFields.includes(key)}
+          />
+        </View>
+      );
+    }
+
+    return (
+      <View key={key} style={styles.fieldRow}>
         <Input
           label={labelMap[key] || key}
           value={String(value)}
           onChangeText={(text) => onChange(key, text)}
           readOnly={isEditing && readOnlyFields.includes(key)}
         />
-      )}
-    </View>
-  ));
+      </View>
+    );
+  });
 };
 
-const renderAddressFields = (data, onChange, readOnlyFields = [], isEditing = false) => {
+const AddressFields = ({ data, onChange, readOnlyFields = [], isEditing = false }) => {
+  const [isFetchingCep, setIsFetchingCep] = useState(false);
+  const lastCepLookup = useRef("");
+
+  const fetchAddressByCep = async (cepDigits) => {
+    if (cepDigits.length !== 8 || cepDigits === lastCepLookup.current) {
+      return;
+    }
+
+    try {
+      setIsFetchingCep(true);
+      lastCepLookup.current = cepDigits;
+
+      const response = await fetch(`https://viacep.com.br/ws/${cepDigits}/json/`);
+      const result = await response.json();
+
+      if (result?.erro) {
+        return;
+      }
+
+      if (result?.logradouro) onChange("rua", result.logradouro);
+      if (result?.localidade) onChange("cidade", result.localidade);
+      if (result?.uf) onChange("uf", result.uf);
+      if (result?.bairro) onChange("bairro", result.bairro);
+    } catch {
+      // Falha no ViaCEP não deve bloquear o fluxo do usuário.
+    } finally {
+      setIsFetchingCep(false);
+    }
+  };
+
+  const handleCepChange = (text) => {
+    const digits = text.replace(/\D/g, "").slice(0, 8);
+    onChange("cep", digits);
+
+    if (digits.length === 8) {
+      fetchAddressByCep(digits);
+    }
+  };
+
   if (!data || Object.keys(data).length === 0) {
     return <Text style={styles.placeholder}>Sem informações</Text>;
   }
@@ -67,12 +142,24 @@ const renderAddressFields = (data, onChange, readOnlyFields = [], isEditing = fa
   return (
     <View style={styles.addressContainer}>
       <View style={styles.fieldRow}>
-        <Input
-          label={labelMap.cep}
-          value={String(data.cep || "")}
-          onChangeText={(text) => onChange("cep", text)}
-          readOnly={isEditing && readOnlyFields.includes("cep")}
-        />
+        <View style={styles.cepRow}>
+          <View style={styles.cepInput}>
+            <Input
+              label={labelMap.cep}
+              value={formatCEP(data.cep || "")}
+              onChangeText={handleCepChange}
+              keyboardType="numeric"
+              readOnly={isEditing && readOnlyFields.includes("cep")}
+            />
+          </View>
+          {isFetchingCep && (
+            <ActivityIndicator
+              size="small"
+              color="#FFFFFF"
+              style={styles.cepSpinner}
+            />
+          )}
+        </View>
       </View>
 
       <View style={styles.addressRow}>
@@ -160,7 +247,12 @@ export const EditProfileTab = ({ personalData, addressData, onSave, readOnlyFiel
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Endereço</Text>
-        {renderAddressFields(editedAddressData, handleAddressChange, readOnlyFields, isEditing)}
+        <AddressFields
+          data={editedAddressData}
+          onChange={handleAddressChange}
+          readOnlyFields={readOnlyFields}
+          isEditing={isEditing}
+        />
       </View>
     </ScrollView>
   );
@@ -196,6 +288,17 @@ const styles = StyleSheet.create({
   },
   fieldRow: {
     marginBottom: 10,
+  },
+  cepRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  cepInput: {
+    flex: 1,
+  },
+  cepSpinner: {
+    marginTop: 6,
   },
   placeholder: {
     fontSize: 16,
