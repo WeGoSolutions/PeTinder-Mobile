@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, KeyboardAvoidingView, Platform } from "react-native";
+import React, { useEffect, useState, useMemo } from "react";
+import { View, Text, StyleSheet, Pressable, KeyboardAvoidingView, Platform, Keyboard } from "react-native";
 import { useRoute } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { CustomHeader } from "../components/CustomHeader";
@@ -11,10 +11,21 @@ import api from "../api";
 import { getAuthUserId } from "../storage/authSession";
 import { EditProfileTab } from "../components/config/EditProfileTab";
 
+const formatCPF = (value) => {
+  const digits = String(value || "").replace(/\D/g, "").slice(0, 11);
+  return digits
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+};
+
+const formatCEP = (value) => {
+  const digits = String(value || "").replace(/\D/g, "").slice(0, 8);
+  return digits.replace(/(\d{5})(\d{1,3})$/, "$1-$2");
+};
+
 const formatDateForView = (isoDate) => {
-  if (!isoDate) {
-    return "";
-  }
+  if (!isoDate) return "";
 
   const value = String(isoDate);
   if (value.includes("-")) {
@@ -28,9 +39,7 @@ const formatDateForView = (isoDate) => {
 };
 
 const normalizeImageUri = (imageValue) => {
-  if (!imageValue) {
-    return null;
-  }
+  if (!imageValue) return null;
 
   if (
     imageValue.startsWith("http://") ||
@@ -49,6 +58,8 @@ const ConfigScreen = ({ navigation }) => {
   const [isLoadingUser, setIsLoadingUser] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
   const [userFetchError, setUserFetchError] = useState("");
+  const [showExitModal, setShowExitModal] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -94,20 +105,32 @@ const ConfigScreen = ({ navigation }) => {
     };
   }, []);
 
-  const personalData = {
+  // 🔥 dados crus (sem máscara)
+  const personalDataRaw = useMemo(() => ({
     email: userProfile?.email || "",
     cpf: userProfile?.cpf || "",
     dataNasc: formatDateForView(userProfile?.dataNascimento),
-  };
+  }), [userProfile]);
 
-  const addressData = {
+  const addressDataRaw = useMemo(() => ({
     cep: userProfile?.cep || "",
     rua: userProfile?.rua || "",
     numero: userProfile?.numero || "",
     complemento: userProfile?.complemento || "",
     cidade: userProfile?.cidade || "",
     uf: userProfile?.uf || "",
-  };
+  }), [userProfile]);
+
+  // ✅ dados formatados (APENAS PARA EXIBIÇÃO)
+  const personalData = useMemo(() => ({
+    ...personalDataRaw,
+    cpf: formatCPF(personalDataRaw.cpf),
+  }), [personalDataRaw]);
+
+  const addressData = useMemo(() => ({
+    ...addressDataRaw,
+    cep: formatCEP(addressDataRaw.cep),
+  }), [addressDataRaw]);
 
   const tabs = [
     {
@@ -124,43 +147,45 @@ const ConfigScreen = ({ navigation }) => {
         <ContaTab personalData={personalData} addressData={addressData} />
       ),
     },
-    // {
-    //   label: "Configurações",
-    //   content: (
-    //     <View>
-    //       <Text style={styles.tabTitle}>Configurações</Text>
-    //     </View>
-    //   ),
-    // },
-    // {
-    //   label: "Ajuda",
-    //   content: (
-    //     <View>
-    //       <Text style={styles.tabTitle}>Ajuda</Text>
-    //     </View>
-    //   ),
-    // },
   ];
+
   const [activeTab, setActiveTab] = useState(tabs[0]);
-  const [showExitModal, setShowExitModal] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
 
   const handleExitConfirm = () => {
     setShowExitModal(false);
     navigation.navigate("Home");
   };
 
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener("keyboardDidShow", () => {
+      setIsKeyboardVisible(true);
+    });
+
+    const hideSub = Keyboard.addListener("keyboardDidHide", () => {
+      setIsKeyboardVisible(false);
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
   return (
     <View style={styles.root}>
       <CustomHeader onBack={() => navigation.goBack()} title={title} />
-      <UserInfo
-        nome={userProfile?.nome || "Usuário"}
-        userImageURL={normalizeImageUri(userProfile?.imagemUrl)}
-        isEditing={isEditing}
-        onEditProfilePress={() => {
-          setIsEditing(true);
-        }}
-      />
+
+      {!isKeyboardVisible && (
+        <UserInfo
+          nome={userProfile?.nome || "Usuário"}
+          userImageURL={normalizeImageUri(userProfile?.imagemUrl)}
+          isEditing={isEditing}
+          onEditProfilePress={() => setIsEditing(true)}
+        />
+      )}
+
       {!isEditing ? (
         <ContentTabs
           tabs={tabs}
@@ -178,41 +203,39 @@ const ConfigScreen = ({ navigation }) => {
         >
           <View style={styles.editingTabsRow}>
             <View style={styles.editingTabItem}>
-              <Text style={styles.editingTabText}>Editando informações</Text>
+              <Text style={styles.editingTabText}>
+                Editando informações
+              </Text>
+
+              <LinearGradient
+                colors={["#E8A0BF", "#F8C8DC", "#FDE4E9"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={{
+                  height: 2,
+                  width: "100%",
+                  marginTop: 14,
+                  borderRadius: 2,
+                }}
+              />
             </View>
           </View>
+
           <View style={styles.editingContentContainer}>
             <EditProfileTab
-              personalData={personalData}
-              addressData={addressData}
+              personalData={personalDataRaw}   // 👈 sem máscara aqui
+              addressData={addressDataRaw}     // 👈 sem máscara aqui
+              isEditing={isEditing}
+              onCancel={() => setIsEditing(false)}
               onSave={(newPersonalData, newAddressData) => {
                 console.log("Salvar dados:", newPersonalData, newAddressData);
                 setIsEditing(false);
               }}
-              isEditing={isEditing}
             />
           </View>
         </KeyboardAvoidingView>
       )}
-      {isEditing && (
-        <View style={styles.editingButtonContainer}>
-          <Pressable
-            onPress={() => setIsEditing(false)}
-            style={styles.cancelButton}
-          >
-            <Text style={styles.cancelButtonText}>Cancelar</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => {
-              console.log("Salvar dados");
-              setIsEditing(false);
-            }}
-            style={styles.saveButton}
-          >
-            <Text style={styles.saveButtonText}>Salvar</Text>
-          </Pressable>
-        </View>
-      )}
+
       {!isEditing && (
         <View style={styles.exitButtonContainer}>
           <Pressable
@@ -223,6 +246,7 @@ const ConfigScreen = ({ navigation }) => {
           </Pressable>
         </View>
       )}
+
       <Modal
         visible={showExitModal}
         onClose={() => setShowExitModal(false)}
@@ -232,13 +256,8 @@ const ConfigScreen = ({ navigation }) => {
         <Text style={styles.modalText}>
           Tem certeza que deseja sair da sua conta?
         </Text>
-        <Pressable
-          style={({ pressed }) => [
-            styles.modalConfirmPressable,
-            pressed && styles.buttonPressed,
-          ]}
-          onPress={handleExitConfirm}
-        >
+
+        <Pressable onPress={handleExitConfirm}>
           <LinearGradient
             colors={["#E8A0BF", "#F8C8DC", "#FDE4E9"]}
             start={{ x: 0, y: 0 }}
@@ -248,10 +267,8 @@ const ConfigScreen = ({ navigation }) => {
             <Text style={styles.modalConfirmText}>Sim, sair</Text>
           </LinearGradient>
         </Pressable>
-        <Pressable
-          style={({ pressed }) => [pressed && styles.buttonPressed]}
-          onPress={() => setShowExitModal(false)}
-        >
+
+        <Pressable onPress={() => setShowExitModal(false)}>
           <View style={styles.modalCancel}>
             <Text style={styles.modalCancelText}>Cancelar</Text>
           </View>
@@ -267,11 +284,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#1A1A1A",
     alignItems: "center",
     justifyContent: "flex-start",
-  },
-  text: {
-    fontSize: 24,
-    fontFamily: "Poppins_600SemiBold",
-    color: "#FFFFFF",
   },
   tabTitle: {
     fontSize: 16,
@@ -301,66 +313,6 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins_600SemiBold",
     color: "#FF3B3B",
   },
-  cancelButton: {
-    backgroundColor: "rgba(255, 72, 72, 0.25)",
-    paddingVertical: 12,
-    paddingHorizontal: 32,
-    borderRadius: 15,
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    fontFamily: "Poppins_600SemiBold",
-    color: "#FF3B3B",
-  },
-  saveButton: {
-    backgroundColor: "#E8A0BF",
-    paddingVertical: 12,
-    paddingHorizontal: 32,
-    borderRadius: 15,
-  },
-  saveButtonText: {
-    fontSize: 16,
-    fontFamily: "Poppins_600SemiBold",
-    color: "#000000",
-  },
-  modalText: {
-    fontSize: 16,
-    fontFamily: "Poppins_500Medium",
-    color: "#CFCFCF",
-    textAlign: "center",
-    marginBottom: 24,
-    lineHeight: 24,
-  },
-  modalConfirmPressable: {
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  buttonPressed: {
-    opacity: 0.85,
-  },
-  modalConfirm: {
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  modalConfirmText: {
-    color: "#1A1A1A",
-    fontFamily: "Poppins_600SemiBold",
-    fontSize: 16,
-  },
-  modalCancel: {
-    backgroundColor: "transparent",
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-    borderWidth: 1.5,
-    borderColor: "#3A3A3A",
-  },
-  modalCancelText: {
-    color: "#FFFFFF",
-    fontFamily: "Poppins_600SemiBold",
-    fontSize: 16,
-  },
   editingTabsContainer: {
     width: "100%",
     flex: 1,
@@ -389,14 +341,36 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 8,
   },
-  editingButtonContainer: {
-    width: "100%",
+  modalText: {
+    fontSize: 16,
+    fontFamily: "Poppins_500Medium",
+    color: "#CFCFCF",
+    textAlign: "center",
+    marginBottom: 24,
+    lineHeight: 24,
+  },
+  modalConfirm: {
+    paddingVertical: 14,
+    borderRadius: 12,
     alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "space-evenly",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    paddingBottom: 20,
+  },
+  modalConfirmText: {
+    color: "#1A1A1A",
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 16,
+  },
+  modalCancel: {
+    backgroundColor: "transparent",
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: "#3A3A3A",
+  },
+  modalCancelText: {
+    color: "#FFFFFF",
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 16,
   },
 });
 
