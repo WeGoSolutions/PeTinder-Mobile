@@ -45,11 +45,13 @@ const Input = ({
   placeholder,
   readOnly,
   disabled,
+  forceActiveStyle,
 }) => {
   const [isFocused, setIsFocused] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const isDate = variant === 'date';
   const isReadOnly = readOnly || disabled;
+  const isDisabled = disabled;
   const displayValue = isDate ? formatDate(dateValue) : value;
   const animatedValue = useRef(new Animated.Value(isDate || displayValue ? 1 : 0)).current;
 
@@ -96,15 +98,21 @@ const Input = ({
               !isReadOnly && pressed && styles.datePressed,
             ]}
           >
-            <View style={[styles.input, styles.dateInput, error && styles.inputError]}>
-              <Text style={[styles.dateText, !displayValue && styles.datePlaceholder]}>
+            <View style={[styles.input, styles.dateInput, error && styles.inputError, isDisabled && styles.dateInputDisabled]}>
+              <Text
+                style={[
+                  styles.dateText,
+                  !displayValue && styles.datePlaceholder,
+                  isReadOnly && !forceActiveStyle && styles.dateTextDisabled
+                ]}
+              >
                 {displayValue || placeholder || 'Selecione uma data'}
               </Text>
               <MaterialIcons
                 name="calendar-today"
                 size={18}
                 color="#FFFFFF"
-                style={[styles.dateIcon, isReadOnly && styles.dateIconDisabled]}
+                style={[styles.dateIcon, isDisabled && styles.dateIconDisabled]}
               />
             </View>
           </Pressable>
@@ -149,7 +157,7 @@ const Input = ({
         </>
       ) : (
         <TextInput
-          style={[styles.input, error && styles.inputError]}
+          style={[styles.input, error && styles.inputError, isDisabled && styles.inputDisabled]}
           value={value}
           onChangeText={onChangeText}
           onFocus={() => setIsFocused(true)}
@@ -157,7 +165,7 @@ const Input = ({
           secureTextEntry={secureTextEntry}
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
-          editable={!isReadOnly}
+          editable={!isReadOnly && !isDisabled}
         />
       )}
     </View>
@@ -183,6 +191,10 @@ const styles = StyleSheet.create({
   inputError: {
     borderBottomColor: '#FF6B6B',
   },
+  inputDisabled: {
+    borderBottomColor: '#666666',
+    color: '#AAAAAA',
+  },
   datePressable: {
     borderRadius: 4,
   },
@@ -197,7 +209,8 @@ const styles = StyleSheet.create({
   dateText: {
     fontSize: 16,
     fontFamily: 'Poppins_400Regular',
-    color: '#FFFFFF',
+    // color: '#FFFFFF', quando era ativa
+    color: '#AAAAAA'
   },
   datePlaceholder: {
     color: '#CFCFCF',
@@ -209,6 +222,9 @@ const styles = StyleSheet.create({
   dateIconDisabled: {
     opacity: 0.6,
   },
+  dateInputDisabled: {
+    borderBottomColor: '#666666',
+  },
   pickerActions: {
     marginTop: 8,
     flexDirection: 'row',
@@ -218,6 +234,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Poppins_600SemiBold',
     color: '#FFC0D9',
+  },
+  dateTextDisabled: {
+    color: '#ffffff',
+    fontFamily: "Poppins_600SemiBold",
   },
 });
 

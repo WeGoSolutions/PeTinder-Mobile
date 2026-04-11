@@ -1,40 +1,104 @@
 import React from "react";
 import { View, StyleSheet, Pressable, Text, Image } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import * as ImagePicker from "expo-image-picker";
+import { Alert } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
-export const UserInfo = ({ nome, userImageURL }) => {
+const UserInfo = ({ nome, userImageURL, onEditProfilePress, isEditing, onReloadUser, onImageSelected, localImageUri }) => {
+
+  const handleImagePress = () => {
+    Alert.alert("Foto de perfil", "Escolha uma opção", [
+      { text: "Tirar foto", onPress: handleCameraPick },
+      { text: "Escolher da galeria", onPress: handleGalleryPick },
+      { text: "Cancelar", style: "cancel" },
+    ]);
+  };
+
+  const handleCameraPick = async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) return;
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      quality: 0.8,
+      aspect: [1, 1],
+      base64: true,
+    });
+
+    if (!result.canceled && result.assets?.length) {
+      onImageSelected?.(result.assets[0].base64, result.assets[0].uri);
+    }
+  };
+
+  const handleGalleryPick = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) return;
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      quality: 0.8,
+      aspect: [1, 1],
+      base64: true,
+    });
+
+    if (!result.canceled && result.assets?.length) {
+      onImageSelected?.(result.assets[0].base64, result.assets[0].uri);
+    }
+  };
+
+  const imageSource = localImageUri
+    ? { uri: localImageUri }
+    : userImageURL
+    ? { uri: userImageURL }
+    : require("../../assets/generic-user-icon.png");
+
   return (
     <View style={styles.container}>
-      <Image
-        source={
-          userImageURL
-            ? { uri: userImageURL }
-            : require("../../assets/generic-user-icon.png")
-        }
-        style={{ width: 150, height: 150, borderRadius: 100 }}
-      />
+      <Pressable onPress={isEditing ? handleImagePress : null} disabled={!isEditing}>
+        <View style={styles.imageWrapper}>
+          <Image
+            source={imageSource}
+            style={{ width: 150, height: 150, borderRadius: 100 }}
+          />
+          {isEditing && (
+            <View style={styles.imageMask}>
+              {/* <Text style={styles.imageMaskText}>✏️</Text> */}
+              <Ionicons style={styles.imageMaskText} name="camera" size={30} color="#000" />
+              <Text style={styles.imageMaskLabel}>Editar</Text>
+            </View>
+          )}
+        </View>
+      </Pressable>
+
       <View style={styles.infoContainer}>
         <Text style={styles.name}>Olá, {nome}</Text>
-        <Pressable
-          onPress={() => console.log("Edit Profile")}
-          style={({ pressed }) => [
-            styles.editButtonPressable,
-            pressed && styles.editButtonPressed,
-          ]}
-        >
-          <LinearGradient
-            colors={["#E8A0BF", "#F8C8DC", "#FDE4E9"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.editButton}
+        {!isEditing && (
+          <Pressable
+            onPress={onEditProfilePress}
+            style={({ pressed }) => [
+              styles.editButtonPressable,
+              pressed && styles.editButtonPressed,
+            ]}
           >
-            <Text style={styles.editButtonText}>Editar Perfil</Text>
-          </LinearGradient>
-        </Pressable>
+            <LinearGradient
+              colors={["#E8A0BF", "#F8C8DC", "#FDE4E9"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.editButton}
+            >
+              <Text style={styles.editButtonText}>Editar Perfil</Text>
+            </LinearGradient>
+          </Pressable>
+        )}
       </View>
     </View>
   );
 };
+
+export { UserInfo };
 
 const styles = StyleSheet.create({
   container: {
@@ -45,6 +109,33 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 180,
     flexDirection: "row",
+  },
+  imageWrapper: {
+    width: 150,
+    height: 150,
+    borderRadius: 100,
+    overflow: "hidden",
+    position: "relative",
+  },
+  imageMask: {
+    position: "absolute",
+    // bottom: 0,
+    // left: 0,
+    // right: 0,
+    // height: 50,
+    height: "100%",
+    width: "100%",
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  imageMaskText: {
+    fontSize: 25,
+  },
+  imageMaskLabel: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontFamily: "Poppins_600SemiBold",
   },
   name: {
     maxWidth: 200,
