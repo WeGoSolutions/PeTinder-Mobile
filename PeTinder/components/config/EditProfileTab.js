@@ -12,7 +12,6 @@ import { CommonActions } from "@react-navigation/native";
 import { clearAuthSession } from "../../storage/authSession.js";
 import Toast from "../Toast.js";
 
-
 const labelMap = {
   nome: "Nome",
   email: "Email",
@@ -55,9 +54,7 @@ const parseDateValue = (value) => {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
-// 🔥 FUNÇÃO INCORPORADA
 const updateUserDataConfig = async (userId, payload, userName) => {
-  console.log(userId);
   try {
     await api.patch(`/users/${userId}`, payload);
     return {
@@ -95,6 +92,7 @@ export const EditProfileTab = ({
   userId,
   nomeUser,
   navigation,
+  imageBase64
 }) => {
   const [editedPersonalData, setEditedPersonalData] = useState(personalData || {});
   const [editedAddressData, setEditedAddressData] = useState(addressData || {});
@@ -109,8 +107,8 @@ export const EditProfileTab = ({
   const [cpfLocked, setCpfLocked] = useState(!!personalData.cpf);
 
   useEffect(() => {
-  setCpfLocked(!!personalData.cpf);
-}, [personalData]);
+    setCpfLocked(!!personalData.cpf);
+  }, [personalData]);
 
 
   useEffect(() => {
@@ -202,10 +200,9 @@ export const EditProfileTab = ({
     if (!date) return null;
 
     if (date instanceof Date) {
-      return date.toISOString().split("T")[0]; // 🔥 YYYY-MM-DD
+      return date.toISOString().split("T")[0];
     }
 
-    // caso venha como "dd/mm/yyyy"
     const parts = String(date).split("/");
     if (parts.length === 3) {
       const [day, month, year] = parts;
@@ -215,22 +212,19 @@ export const EditProfileTab = ({
     return date;
   };
 
-  // 🔥 SAVE COM BACKEND
   const handleSave = async () => {
     if (!validateFields()) return;
     if (loading) return;
+
     setLoading(true);
 
-    const resolvedUserId = await userId; // 🔥 resolve promise
-
-    console.log("UserId correto:", resolvedUserId);
-
     try {
+      const resolvedUserId = await userId;
       const payload = {
         nome: nomeUser,
         email: editedPersonalData.email,
         cpf: editedPersonalData.cpf,
-        dataNascimento: formatDateToISO(editedPersonalData.dataNasc), // ✅ corrigido
+        dataNascimento: formatDateToISO(editedPersonalData.dataNasc),
         cep: editedAddressData.cep,
         rua: editedAddressData.rua,
         numero: editedAddressData.numero,
@@ -245,48 +239,67 @@ export const EditProfileTab = ({
         editedPersonalData.nome
       );
 
-      if (result.success) {
-        const emailAlterado =
-          String(personalData.email).trim().toLowerCase() !==
-          String(editedPersonalData.email).trim().toLowerCase();
-
-        if (emailAlterado) {
-          setToast({
-            visible: true,
-            type: "success",
-            message: "Email alterado, necessário reconectar",
-          });
-
-          await clearAuthSession();
-
-          setTimeout(() => {
-            navigation.dispatch(
-              CommonActions.reset({
-                index: 0,
-                routes: [{ name: "Home" }],
-              })
-            );
-          }, 2500);
-        } else {
-          setToast({
-            visible: true,
-            type: "success",
-            message: "Dados atualizados com sucesso!",
-          });
-
-          setCpfLocked(true);
-          // aqui você pode só sair do modo edição
-          // onSave?.(editedPersonalData, editedAddressData);
-          setTimeout(() => {
-            onSave?.();
-          }, 1500); // tempo suficiente pro toast aparecer
-          setLoading(false);
-        }
-      } else {
+      if (!result.success) {
         console.log(result.message);
+        return;
       }
+
+      const emailAlterado =
+        String(personalData.email).trim().toLowerCase() !==
+        String(editedPersonalData.email).trim().toLowerCase();
+
+      if (emailAlterado) {
+        setToast({
+          visible: true,
+          type: "success",
+          message: "Email alterado, necessário reconectar",
+        });
+
+        await clearAuthSession();
+
+        setTimeout(() => {
+          navigation.dispatch(
+            CommonActions.reset({
+              index: 0,
+              routes: [{ name: "Home" }],
+            })
+          );
+        }, 2500);
+
+        return;
+      }
+
+      if (imageBase64) {
+        try {
+          await api.post(`/users/${resolvedUserId}/imagem`, {
+            imagemUsuario: imageBase64,
+          });
+        } catch (error) {
+          console.log("Erro ao enviar imagem (ignorado):", error);
+        }
+      }
+
+      setToast({
+        visible: true,
+        type: "success",
+        message: "Dados atualizados com sucesso!",
+      });
+
+      setCpfLocked(true);
+
+      setTimeout(() => {
+        onSave?.();
+      }, 1500);
+
     } catch (error) {
       console.log("Erro inesperado ao salvar:", error);
+      setToast({
+        visible: true,
+        type: "error",
+        message: "Erro ao atualizar dados!",
+      });
+    } finally {
+      setLoading(false);
     }
   };
 

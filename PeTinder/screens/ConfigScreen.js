@@ -11,10 +11,6 @@ import api from "../api";
 import { getAuthUserId } from "../storage/authSession";
 import { EditProfileTab } from "../components/config/EditProfileTab";
 
-// const userId = getAuthUserId();
-
-
-
 const formatCPF = (value) => {
   const digits = String(value || "").replace(/\D/g, "").slice(0, 11);
   return digits
@@ -30,21 +26,16 @@ const formatCEP = (value) => {
 
 const formatDateForView = (isoDate) => {
   if (!isoDate) return "";
-
   const value = String(isoDate);
   if (value.includes("-")) {
     const [year, month, day] = value.split("-");
-    if (year && month && day) {
-      return `${day}/${month}/${year}`;
-    }
+    if (year && month && day) return `${day}/${month}/${year}`;
   }
-
   return value;
 };
 
 const normalizeImageUri = (imageValue) => {
   if (!imageValue) return null;
-
   if (
     imageValue.startsWith("http://") ||
     imageValue.startsWith("https://") ||
@@ -52,7 +43,6 @@ const normalizeImageUri = (imageValue) => {
   ) {
     return imageValue;
   }
-
   return `data:image/jpeg;base64,${imageValue}`;
 };
 
@@ -65,58 +55,38 @@ const ConfigScreen = ({ navigation }) => {
   const [showExitModal, setShowExitModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [userId, setUserId] = useState(null);
+  const [imageBase64, setImageBase64] = useState(null);
+  const [localImageUri, setLocalImageUri] = useState(null);
+
+  const loadUserProfile = async () => {
+    try {
+      setIsLoadingUser(true);
+      setUserFetchError("");
+      const id = await getAuthUserId();
+      if (!id) {
+        setUserFetchError("Usuário não encontrado na sessão.");
+        return;
+      }
+      setUserId(id);
+      const response = await api.get(`/users/${id}`);
+      setUserProfile(response.data || null);
+    } catch (error) {
+      const errorMsg =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Não foi possível carregar os dados da conta.";
+      setUserFetchError(errorMsg);
+    } finally {
+      setIsLoadingUser(false);
+    }
+  };
 
   useEffect(() => {
-    let isMounted = true;
-
-    const loadUserProfile = async () => {
-      try {
-        setIsLoadingUser(true);
-        setUserFetchError("");
-
-        const id = await getAuthUserId(); // ✅ correto
-
-        if (!id) {
-          if (isMounted) {
-            setUserFetchError("Usuário não encontrado na sessão.");
-          }
-          return;
-        }
-
-        if (isMounted) {
-          setUserId(id); // ✅ salva corretamente
-        }
-
-        const response = await api.get(`/users/${id}`);
-
-        if (isMounted) {
-          setUserProfile(response.data || null);
-        }
-      } catch (error) {
-        if (isMounted) {
-          const errorMsg =
-            error?.response?.data?.message ||
-            error?.message ||
-            "Não foi possível carregar os dados da conta.";
-          setUserFetchError(errorMsg);
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoadingUser(false);
-        }
-      }
-    };
-
-     if (!isEditing) {
-    loadUserProfile();
-  }
-
-    return () => {
-      isMounted = false;
-    };
+    if (!isEditing) {
+      loadUserProfile();
+    }
   }, [isEditing]);
 
-  // 🔥 dados crus (sem máscara)
   const personalDataRaw = useMemo(() => ({
     email: userProfile?.email || "",
     cpf: userProfile?.cpf || "",
@@ -132,7 +102,6 @@ const ConfigScreen = ({ navigation }) => {
     uf: userProfile?.uf || "",
   }), [userProfile]);
 
-  // ✅ dados formatados (APENAS PARA EXIBIÇÃO)
   const personalData = useMemo(() => ({
     ...personalDataRaw,
     cpf: formatCPF(personalDataRaw.cpf),
@@ -170,19 +139,24 @@ const ConfigScreen = ({ navigation }) => {
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   useEffect(() => {
-    const showSub = Keyboard.addListener("keyboardDidShow", () => {
-      setIsKeyboardVisible(true);
-    });
-
-    const hideSub = Keyboard.addListener("keyboardDidHide", () => {
-      setIsKeyboardVisible(false);
-    });
-
+    const showSub = Keyboard.addListener("keyboardDidShow", () => setIsKeyboardVisible(true));
+    const hideSub = Keyboard.addListener("keyboardDidHide", () => setIsKeyboardVisible(false));
     return () => {
       showSub.remove();
       hideSub.remove();
     };
   }, []);
+
+  const handleImageSelected = (base64, uri) => {
+    setImageBase64(base64);
+    setLocalImageUri(uri);
+  };
+
+  const handleCancelEditing = () => {
+    setIsEditing(false);
+    setLocalImageUri(null);
+    setImageBase64(null);
+  };
 
   return (
     <View style={styles.root}>
@@ -192,8 +166,11 @@ const ConfigScreen = ({ navigation }) => {
         <UserInfo
           nome={userProfile?.nome || "Usuário"}
           userImageURL={normalizeImageUri(userProfile?.imagemUrl)}
+          onReloadUser={loadUserProfile}
           isEditing={isEditing}
           onEditProfilePress={() => setIsEditing(true)}
+          onImageSelected={handleImageSelected}
+          localImageUri={localImageUri}
         />
       )}
 
@@ -214,38 +191,33 @@ const ConfigScreen = ({ navigation }) => {
         >
           <View style={styles.editingTabsRow}>
             <View style={styles.editingTabItem}>
-              <Text style={styles.editingTabText}>
-                Editando informações
-              </Text>
-
+              <Text style={styles.editingTabText}>Editando informações</Text>
               <LinearGradient
                 colors={["#E8A0BF", "#F8C8DC", "#FDE4E9"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
-                style={{
-                  height: 2,
-                  width: "100%",
-                  marginTop: 14,
-                  borderRadius: 2,
-                }}
+                style={{ height: 2, width: "100%", marginTop: 14, borderRadius: 2 }}
               />
             </View>
           </View>
 
           <View style={styles.editingContentContainer}>
             <EditProfileTab
-              personalData={personalDataRaw}   // 👈 sem máscara aqui
-              addressData={addressDataRaw}     // 👈 sem máscara aqui
+              personalData={personalDataRaw}
+              addressData={addressDataRaw}
               isEditing={isEditing}
-              onCancel={() => setIsEditing(false)}
+              onCancel={handleCancelEditing}
               onSave={async () => {
                 setIsEditing(false);
-                await loadUserProfile(); // 🔥 recarrega dados atualizados
-                console.log("Salvar dados:", newPersonalData, newAddressData);
+                setLocalImageUri(null);
+                setImageBase64(null);
+                await loadUserProfile();
+                console.log("Salvar dados:", personalDataRaw, addressDataRaw);
               }}
               userId={userId}
               nomeUser={userProfile?.nome || "Sem nome"}
               navigation={navigation}
+              imageBase64={imageBase64}
             />
           </View>
         </KeyboardAvoidingView>
