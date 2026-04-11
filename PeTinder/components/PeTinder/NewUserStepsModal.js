@@ -69,10 +69,18 @@ const NewUserStepsModal = ({ visible, step, onNext, onBack, onFinish }) => {
       base64: true,
     });
 
-    if (!result.canceled && result.assets?.length) {
-      setProfileImageUri(result.assets[0].uri);
-      setProfileImageBase64(result.assets[0].base64 || null);
+    if (result.canceled || !result.assets?.length) {
+      return;
     }
+
+    const pickedAsset = result.assets[0];
+
+    if (!pickedAsset?.uri) {
+      return;
+    }
+
+    setProfileImageUri(pickedAsset.uri);
+    setProfileImageBase64(pickedAsset?.base64 || null);
   };
 
   const handleGalleryPick = async () => {
@@ -90,10 +98,18 @@ const NewUserStepsModal = ({ visible, step, onNext, onBack, onFinish }) => {
       base64: true,
     });
 
-    if (!result.canceled && result.assets?.length) {
-      setProfileImageUri(result.assets[0].uri);
-      setProfileImageBase64(result.assets[0].base64 || null);
+    if (result.canceled || !result.assets?.length) {
+      return;
     }
+
+    const pickedAsset = result.assets[0];
+
+    if (!pickedAsset?.uri) {
+      return;
+    }
+
+    setProfileImageUri(pickedAsset.uri);
+    setProfileImageBase64(pickedAsset?.base64 || null);
   };
 
   const handleImageInputPress = () => {
