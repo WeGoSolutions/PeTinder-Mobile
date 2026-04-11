@@ -67,10 +67,10 @@ const ChatScreen = ({ navigation }) => {
   const route = useRoute();
   const insets = useSafeAreaInsets();
   const title = route.params?.title || 'Chat';
-  const [users, setUsers] = useState([]);
+  const [pets, setPets] = useState([]);
   const [firebaseChatsById, setFirebaseChatsById] = useState({});
   const [isLoading, setIsLoading] = useState(true);
-  const [isUsersLoaded, setIsUsersLoaded] = useState(false);
+  const [isPetsLoaded, setIsPetsLoaded] = useState(false);
   const [isChatsLoaded, setIsChatsLoaded] = useState(!hasRequiredFirebaseConfig);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUserName, setCurrentUserName] = useState('Você');
@@ -83,8 +83,8 @@ const ChatScreen = ({ navigation }) => {
   const [groupCreateError, setGroupCreateError] = useState('');
 
   useEffect(() => {
-    setIsLoading(!(isUsersLoaded && isChatsLoaded));
-  }, [isUsersLoaded, isChatsLoaded]);
+    setIsLoading(!(isPetsLoaded && isChatsLoaded));
+  }, [isPetsLoaded, isChatsLoaded]);
 
   useEffect(() => {
     let unsubscribe = () => {};
@@ -98,13 +98,13 @@ const ChatScreen = ({ navigation }) => {
       setCurrentUserName(userName);
 
        try {
-        const response = await api.get('/users');
-        const allUsers = Array.isArray(response?.data) ? response.data : [];
-        setUsers(allUsers);
+        const response = await api.get(`/status/${userId}/PENDING`);
+        const allPets = Array.isArray(response?.data) ? response.data : [];
+        setPets(allPets);
       } catch (error) {
-        setApiError(error?.response?.data?.message || 'Erro ao carregar usuários da API.');
+        setApiError(error?.response?.data?.message || 'Erro ao carregar pets com status PENDING.');
       } finally {
-        setIsUsersLoaded(true);
+        setIsPetsLoaded(true);
       }
 
       if (!hasRequiredFirebaseConfig) {
@@ -130,7 +130,7 @@ const ChatScreen = ({ navigation }) => {
 
     init().catch((error) => {
       setApiError(error?.message || 'Erro ao iniciar chat.');
-      setIsUsersLoaded(true);
+      setIsPetsLoaded(true);
       setIsChatsLoaded(true);
     });
 
@@ -141,21 +141,20 @@ const ChatScreen = ({ navigation }) => {
 
   const chatList = useMemo(
     () => {
-      const directChats = users
-        .filter((user) => String(user?.id || '') !== String(currentUserId || ''))
-        .map((user) => {
-          const participantId = String(user?.id || '').trim();
-          const chatId = buildDirectChatId(currentUserId, participantId);
+      const petChats = pets
+        .map((pet) => {
+          const chatId = buildDirectChatId(currentUserId, pet.ongId);
           const firebaseChat = firebaseChatsById[chatId];
 
           return {
-            id: chatId || participantId,
+            id: chatId || pet.petId,
             chatId,
-            participantId,
-            name: user?.nome || 'Usuário',
+            participantId: pet.ongId,
+            petId: pet.petId,
+            name: pet.petNome || 'Pet',
             lastMessage: firebaseChat?.lastMessage || 'Toque para iniciar conversa',
             isLastMessageMine: String(firebaseChat?.lastMessageSenderId || '') === String(currentUserId || ''),
-            avatar: user?.imagemUrl || null,
+            avatar: pet.imageUrl || null,
             lastMessageAt: timestampToMillis(firebaseChat?.updatedAt || firebaseChat?.createdAt),
             unreadCount: Number(firebaseChat?.unreadCountByUser?.[currentUserId] || 0),
             isGroup: false,
@@ -180,24 +179,18 @@ const ChatScreen = ({ navigation }) => {
 
       const mergedById = new Map();
 
-      [...directChats, ...groupChats].forEach((item) => {
+      [...petChats, ...groupChats].forEach((item) => {
         mergedById.set(item.id, item);
       });
 
       return Array.from(mergedById.values()).sort((a, b) => b.lastMessageAt - a.lastMessageAt);
     },
-    [users, currentUserId, firebaseChatsById],
+    [pets, currentUserId, firebaseChatsById],
   );
 
   const selectableUsers = useMemo(
-    () => users
-      .filter((user) => String(user?.id || '') !== String(currentUserId || ''))
-      .map((user) => ({
-        id: String(user?.id || '').trim(),
-        name: user?.nome || 'Usuário',
-      }))
-      .filter((user) => Boolean(user.id)),
-    [users, currentUserId],
+    () => [],
+    [],
   );
 
   const toggleGroupUser = (userId) => {
