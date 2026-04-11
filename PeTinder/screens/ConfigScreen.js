@@ -11,6 +11,10 @@ import api from "../api";
 import { getAuthUserId } from "../storage/authSession";
 import { EditProfileTab } from "../components/config/EditProfileTab";
 
+// const userId = getAuthUserId();
+
+
+
 const formatCPF = (value) => {
   const digits = String(value || "").replace(/\D/g, "").slice(0, 11);
   return digits
@@ -60,6 +64,7 @@ const ConfigScreen = ({ navigation }) => {
   const [userFetchError, setUserFetchError] = useState("");
   const [showExitModal, setShowExitModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [userId, setUserId] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -69,16 +74,20 @@ const ConfigScreen = ({ navigation }) => {
         setIsLoadingUser(true);
         setUserFetchError("");
 
-        const userId = await getAuthUserId();
+        const id = await getAuthUserId(); // ✅ correto
 
-        if (!userId) {
+        if (!id) {
           if (isMounted) {
             setUserFetchError("Usuário não encontrado na sessão.");
           }
           return;
         }
 
-        const response = await api.get(`/users/${userId}`);
+        if (isMounted) {
+          setUserId(id); // ✅ salva corretamente
+        }
+
+        const response = await api.get(`/users/${id}`);
 
         if (isMounted) {
           setUserProfile(response.data || null);
@@ -98,12 +107,14 @@ const ConfigScreen = ({ navigation }) => {
       }
     };
 
+     if (!isEditing) {
     loadUserProfile();
+  }
 
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [isEditing]);
 
   // 🔥 dados crus (sem máscara)
   const personalDataRaw = useMemo(() => ({
@@ -227,10 +238,14 @@ const ConfigScreen = ({ navigation }) => {
               addressData={addressDataRaw}     // 👈 sem máscara aqui
               isEditing={isEditing}
               onCancel={() => setIsEditing(false)}
-              onSave={(newPersonalData, newAddressData) => {
-                console.log("Salvar dados:", newPersonalData, newAddressData);
+              onSave={async () => {
                 setIsEditing(false);
+                await loadUserProfile(); // 🔥 recarrega dados atualizados
+                console.log("Salvar dados:", newPersonalData, newAddressData);
               }}
+              userId={userId}
+              nomeUser={userProfile?.nome || "Sem nome"}
+              navigation={navigation}
             />
           </View>
         </KeyboardAvoidingView>

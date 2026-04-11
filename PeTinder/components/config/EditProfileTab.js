@@ -7,6 +7,11 @@ import {
   Pressable,
 } from "react-native";
 import Input from "../Input";
+import api from "../../api.js";
+import { CommonActions } from "@react-navigation/native";
+import { clearAuthSession } from "../../storage/authSession.js";
+import Toast from "../Toast.js";
+
 
 const labelMap = {
   nome: "Nome",
@@ -50,6 +55,36 @@ const parseDateValue = (value) => {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
+// 🔥 FUNÇÃO INCORPORADA
+const updateUserDataConfig = async (userId, payload, userName) => {
+  console.log(userId);
+  try {
+    await api.patch(`/users/${userId}`, payload);
+    return {
+      success: true,
+      message: "Dados atualizados com sucesso!",
+      userName: userName,
+    };
+  } catch (error) {
+    console.error("Erro ao atualizar dados do usuário:", error);
+
+    if (error.response && error.response.status === 409) {
+      return {
+        success: false,
+        message:
+          "O CPF informado já está em uso. Por favor, verifique e tente novamente.",
+        error: error,
+      };
+    }
+
+    return {
+      success: false,
+      message: "Erro ao atualizar dados do usuário.",
+      error: error,
+    };
+  }
+};
+
 export const EditProfileTab = ({
   personalData,
   addressData,
@@ -57,11 +92,26 @@ export const EditProfileTab = ({
   onCancel,
   readOnlyFields = [],
   isEditing = false,
+  userId,
+  nomeUser,
+  navigation,
 }) => {
   const [editedPersonalData, setEditedPersonalData] = useState(personalData || {});
   const [editedAddressData, setEditedAddressData] = useState(addressData || {});
   const [errors, setErrors] = useState({});
   const lastCepLookup = useRef("");
+  const [toast, setToast] = useState({
+    visible: false,
+    type: "success",
+    message: "",
+  });
+  const [loading, setLoading] = useState(false);
+  const [cpfLocked, setCpfLocked] = useState(!!personalData.cpf);
+
+  useEffect(() => {
+  setCpfLocked(!!personalData.cpf);
+}, [personalData]);
+
 
   useEffect(() => {
     setEditedPersonalData(personalData || {});
@@ -102,7 +152,6 @@ export const EditProfileTab = ({
 
       if (result?.uf)
         handleAddressChange("uf", result.uf);
-
     } catch (error) {
       console.log("Erro ao buscar CEP:", error);
     }
@@ -149,6 +198,98 @@ export const EditProfileTab = ({
     return Object.keys(newErrors).length === 0;
   };
 
+  const formatDateToISO = (date) => {
+    if (!date) return null;
+
+    if (date instanceof Date) {
+      return date.toISOString().split("T")[0]; // 🔥 YYYY-MM-DD
+    }
+
+    // caso venha como "dd/mm/yyyy"
+    const parts = String(date).split("/");
+    if (parts.length === 3) {
+      const [day, month, year] = parts;
+      return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+    }
+
+    return date;
+  };
+
+  // 🔥 SAVE COM BACKEND
+  const handleSave = async () => {
+    if (!validateFields()) return;
+    if (loading) return;
+    setLoading(true);
+
+    const resolvedUserId = await userId; // 🔥 resolve promise
+
+    console.log("UserId correto:", resolvedUserId);
+
+    try {
+      const payload = {
+        nome: nomeUser,
+        email: editedPersonalData.email,
+        cpf: editedPersonalData.cpf,
+        dataNascimento: formatDateToISO(editedPersonalData.dataNasc), // ✅ corrigido
+        cep: editedAddressData.cep,
+        rua: editedAddressData.rua,
+        numero: editedAddressData.numero,
+        cidade: editedAddressData.cidade,
+        uf: editedAddressData.uf,
+        complemento: editedAddressData.complemento,
+      };
+
+      const result = await updateUserDataConfig(
+        resolvedUserId,
+        payload,
+        editedPersonalData.nome
+      );
+
+      if (result.success) {
+        const emailAlterado =
+          String(personalData.email).trim().toLowerCase() !==
+          String(editedPersonalData.email).trim().toLowerCase();
+
+        if (emailAlterado) {
+          setToast({
+            visible: true,
+            type: "success",
+            message: "Email alterado, necessário reconectar",
+          });
+
+          await clearAuthSession();
+
+          setTimeout(() => {
+            navigation.dispatch(
+              CommonActions.reset({
+                index: 0,
+                routes: [{ name: "Home" }],
+              })
+            );
+          }, 2500);
+        } else {
+          setToast({
+            visible: true,
+            type: "success",
+            message: "Dados atualizados com sucesso!",
+          });
+
+          setCpfLocked(true);
+          // aqui você pode só sair do modo edição
+          // onSave?.(editedPersonalData, editedAddressData);
+          setTimeout(() => {
+            onSave?.();
+          }, 1500); // tempo suficiente pro toast aparecer
+          setLoading(false);
+        }
+      } else {
+        console.log(result.message);
+      }
+    } catch (error) {
+      console.log("Erro inesperado ao salvar:", error);
+    }
+  };
+
   return (
     <ScrollView
       style={styles.container}
@@ -190,16 +331,11 @@ export const EditProfileTab = ({
                   }
                 }}
                 keyboardType={key === "cpf" ? "numeric" : "default"}
-                disabled={
-                  key === "cpf"
-                    ? !!editedPersonalData.cpf
-                    : false
-                }
+                disabled={key === "cpf" ? cpfLocked : false}
                 readOnly={
                   key !== "cpf" && isEditing && readOnlyFields.includes(key)
                 }
                 error={!!errors[key]}
-
               />
             )}
 
@@ -248,17 +384,15 @@ export const EditProfileTab = ({
           <Text style={styles.cancelButtonText}>Cancelar</Text>
         </Pressable>
 
-        <Pressable
-          onPress={() => {
-            if (validateFields()) {
-              onSave(editedPersonalData, editedAddressData);
-            }
-          }}
-          style={styles.saveButton}
-        >
+        <Pressable onPress={handleSave} style={styles.saveButton}>
           <Text style={styles.saveButtonText}>Salvar</Text>
         </Pressable>
       </View>
+      <Toast
+        visible={toast.visible}
+        type={toast.type}
+        message={toast.message}
+      />
     </ScrollView>
   );
 };
