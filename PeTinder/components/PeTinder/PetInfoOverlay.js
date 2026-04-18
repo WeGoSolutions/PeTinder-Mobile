@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
 const PetInfoOverlay = ({ pet, onToggleDetails, liked, likesCount, onToggleLike }) => {
   const sexSymbol = pet.sex === 'M' ? '♂' : '♀';
   const tags = Array.isArray(pet.tags) ? pet.tags : [];
-  const visibleTags = tags.slice(0, 2);
+  const visibleTags = tags.slice(0, 3);
   const hasMoreTags = tags.length > visibleTags.length;
 
   return (
