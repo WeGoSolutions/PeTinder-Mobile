@@ -55,6 +55,7 @@ const PetExpandedOverlay = ({
   const visibleRef = useRef(visible);
   const onCloseRef = useRef(onClose);
   const sexSymbol = pet.sex === "M" ? "♂" : "♀";
+  const tags = Array.isArray(pet.tags) ? pet.tags : [];
 
   const description = useMemo(
     () =>
@@ -183,8 +184,8 @@ const PetExpandedOverlay = ({
               <Text style={styles.age}>{pet.age}</Text>
             </View>
 
-            <View style={styles.tagsRow}>
-              {pet.tags.map((tag) => (
+            <View style={styles.tagsGrid}>
+              {tags.map((tag) => (
                 <View
                   key={tag.label}
                   style={[styles.tag, { backgroundColor: tag.color }]}
@@ -302,14 +303,18 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins_600SemiBold",
     marginTop: 8,
   },
-  tagsRow: {
+  tagsGrid: {
     flexDirection: "row",
-    gap: 8,
+    flexWrap: "wrap",
+    gap: 6,
   },
   tag: {
     borderRadius: 999,
-    paddingHorizontal: 12,
+    paddingHorizontal: 11,
     paddingVertical: 6,
+    flexGrow: 0,
+    flexShrink: 0,
+    alignSelf: "flex-start",
   },
   tagText: {
     color: "#F4F4F4",
