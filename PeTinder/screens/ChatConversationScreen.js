@@ -9,10 +9,12 @@ import {
   Pressable,
   KeyboardAvoidingView,
   Platform,
+  Keyboard,
   Image,
   Alert,
   Modal,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as ImagePicker from "expo-image-picker";
 import { Audio } from "expo-av";
@@ -166,11 +168,11 @@ const extractAiResponseText = (responseData) => {
 
   return String(
     responseData?.message
-      || responseData?.resposta
-      || responseData?.response
-      || responseData?.reply
-      || responseData?.content
-      || "",
+    || responseData?.resposta
+    || responseData?.response
+    || responseData?.reply
+    || responseData?.content
+    || "",
   ).trim();
 };
 
@@ -245,6 +247,8 @@ const ChatConversationScreen = ({ navigation }) => {
   const isRecordPressActiveRef = useRef(false);
   const isRecordStartInProgressRef = useRef(false);
   const dotsAnim = useRef(new Animated.Value(0)).current;
+  const insets = useSafeAreaInsets();
+  const [androidKeyboardOffset, setAndroidKeyboardOffset] = useState(0);
 
   const resolvedChatId = useMemo(
     () => chatId || buildDirectChatId(currentUserId, participantId),
@@ -264,15 +268,15 @@ const ChatConversationScreen = ({ navigation }) => {
       }
     };
 
-    loadSession().catch(() => {});
+    loadSession().catch(() => { });
   }, []);
 
   useEffect(() => {
     if (!hasRequiredFirebaseConfig) {
-      return () => {};
+      return () => { };
     }
 
-    markChatAsRead(resolvedChatId, currentUserId).catch(() => {});
+    markChatAsRead(resolvedChatId, currentUserId).catch(() => { });
 
     const unsubscribe = subscribeToMessages(
       resolvedChatId,
@@ -283,7 +287,7 @@ const ChatConversationScreen = ({ navigation }) => {
 
         if (lastMessage?.id && lastMarkedMessageIdRef.current !== lastMessage.id) {
           lastMarkedMessageIdRef.current = lastMessage.id;
-          markChatAsRead(resolvedChatId, currentUserId).catch(() => {});
+          markChatAsRead(resolvedChatId, currentUserId).catch(() => { });
         }
       },
       (error) => {
@@ -298,7 +302,7 @@ const ChatConversationScreen = ({ navigation }) => {
 
   useEffect(() => {
     if (isAiChat || !hasRequiredFirebaseConfig) {
-      return () => {};
+      return () => { };
     }
 
     const unsubscribe = subscribeToChat(
@@ -309,7 +313,7 @@ const ChatConversationScreen = ({ navigation }) => {
         const otherTyping = Boolean(participantId && typingByUser[participantId]);
         setIsOtherTyping(otherTyping);
       },
-      () => {},
+      () => { },
     );
 
     return () => {
@@ -342,6 +346,26 @@ const ChatConversationScreen = ({ navigation }) => {
   }, [dotsAnim, isOtherTyping]);
 
   useEffect(() => {
+    if (Platform.OS !== "android") {
+      return () => { };
+    }
+
+    const onShow = Keyboard.addListener("keyboardDidShow", (event) => {
+      const keyboardHeight = Number(event?.endCoordinates?.height || 0);
+      setAndroidKeyboardOffset(Math.max(0, keyboardHeight + 2));
+    });
+
+    const onHide = Keyboard.addListener("keyboardDidHide", () => {
+      setAndroidKeyboardOffset(0);
+    });
+
+    return () => {
+      onShow.remove();
+      onHide.remove();
+    };
+  }, [insets.bottom]);
+
+  useEffect(() => {
     return () => {
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
@@ -360,7 +384,7 @@ const ChatConversationScreen = ({ navigation }) => {
             participantId,
             userName: currentUserName,
             participantName: userName,
-          }).catch(() => {});
+          }).catch(() => { });
         }
       }
 
@@ -369,11 +393,11 @@ const ChatConversationScreen = ({ navigation }) => {
       }
 
       if (recordingRef.current) {
-        recordingRef.current.stopAndUnloadAsync().catch(() => {});
+        recordingRef.current.stopAndUnloadAsync().catch(() => { });
       }
 
       if (soundRef.current) {
-        soundRef.current.unloadAsync().catch(() => {});
+        soundRef.current.unloadAsync().catch(() => { });
       }
     };
   }, [resolvedChatId, currentUserId, participantId, currentUserName, userName, isAiChat]);
@@ -635,7 +659,7 @@ const ChatConversationScreen = ({ navigation }) => {
         participantId,
         userName: currentUserName,
         participantName: userName,
-      }).catch(() => {});
+      }).catch(() => { });
     }
 
     try {
@@ -719,7 +743,7 @@ const ChatConversationScreen = ({ navigation }) => {
             recipientId: currentUserId,
             recipientName: currentUserName,
             messageText: aiErrorMessage.text,
-          }).catch(() => {});
+          }).catch(() => { });
         }
 
         listRef.current?.scrollToOffset({ offset: 0, animated: true });
@@ -918,7 +942,7 @@ const ChatConversationScreen = ({ navigation }) => {
 
       sound.setOnPlaybackStatusUpdate((status) => {
         if (status?.didJustFinish) {
-          sound.unloadAsync().catch(() => {});
+          sound.unloadAsync().catch(() => { });
           soundRef.current = null;
           setPlayingAudioMessageId("");
         }
@@ -1052,7 +1076,7 @@ const ChatConversationScreen = ({ navigation }) => {
           participantId,
           userName: currentUserName,
           participantName: userName,
-        }).catch(() => {});
+        }).catch(() => { });
       }
       return;
     }
@@ -1066,7 +1090,7 @@ const ChatConversationScreen = ({ navigation }) => {
         participantId,
         userName: currentUserName,
         participantName: userName,
-      }).catch(() => {});
+      }).catch(() => { });
     }
 
     if (typingTimeoutRef.current) {
@@ -1082,7 +1106,7 @@ const ChatConversationScreen = ({ navigation }) => {
         participantId,
         userName: currentUserName,
         participantName: userName,
-      }).catch(() => {});
+      }).catch(() => { });
     }, 1400);
   };
 
@@ -1103,6 +1127,8 @@ const ChatConversationScreen = ({ navigation }) => {
     <KeyboardAvoidingView
       style={styles.root}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? Math.max(insets.top, 0) : 0}
+      enabled={Platform.OS === "ios"}
     >
       <View style={styles.root}>
         <CustomHeader onBack={() => navigation.goBack()} title={userName} />
@@ -1123,6 +1149,8 @@ const ChatConversationScreen = ({ navigation }) => {
           inverted
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.messagesList}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           renderItem={({ item }) => (
             <View
               style={[
@@ -1202,7 +1230,14 @@ const ChatConversationScreen = ({ navigation }) => {
           </View>
         )}
 
-        <View style={styles.inputRow}>
+        <View
+          style={[
+            styles.inputRow,
+            Platform.OS === "android" && androidKeyboardOffset > 0
+              ? { marginBottom: androidKeyboardOffset }
+              : null,
+          ]}
+        >
           {!isAiChat && (
             <Pressable
               onPressIn={handleRecordPressIn}

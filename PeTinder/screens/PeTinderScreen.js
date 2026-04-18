@@ -83,6 +83,22 @@ const mapImages = (imagens) => {
     });
 };
 
+const formatPetAge = (ageValue) => {
+  const numericAge = Number(ageValue);
+
+  if (!Number.isFinite(numericAge) || numericAge <= 0) {
+    return '-';
+  }
+
+  if (numericAge < 1) {
+    const months = Math.max(1, Math.round(numericAge * 12));
+    return `${months} ${months === 1 ? 'Mês' : 'Meses'}`;
+  }
+
+  const years = Math.floor(numericAge);
+  return `${years} ${years === 1 ? 'Ano' : 'Anos'}`;
+};
+
 const loadPetImages = async (petId) => {
   if (!petId) {
     return [require('../assets/cachorro.png')];
@@ -118,7 +134,7 @@ const mapPetFromApi = (pet) => ({
   id: pet?.id,
   name: pet?.nome || 'Pet',
   sex: pet?.sexo === 'FEMEA' ? 'F' : 'M',
-  age: pet?.idade ? `${Math.floor(Number(pet.idade))} Anos` : '-',
+  age: formatPetAge(pet?.idade),
   likes: Number(pet?.curtidas) || 0,
   liked: false,
   images: mapImages(pet?.imagens || pet?.imagensUrls),

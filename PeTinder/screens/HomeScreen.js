@@ -8,7 +8,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
-  TouchableWithoutFeedback,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import api from "../api";
@@ -199,7 +198,7 @@ const HomeScreen = ({ navigation }) => {
           error.code === "ECONNABORTED"
             ? "Tempo de resposta esgotado. Verifique o backend e tente novamente."
             : error.response?.data?.message ||
-              "Erro ao fazer login. Verifique sua conexão e tente novamente.";
+            "Erro ao fazer login. Verifique sua conexão e tente novamente.";
         setErrorMessage(errorMsg);
       });
   };
@@ -442,7 +441,7 @@ const HomeScreen = ({ navigation }) => {
             error.code === "ECONNABORTED"
               ? "Tempo de resposta esgotado. Verifique o backend e tente novamente."
               : error.response?.data?.message ||
-                "Erro ao criar conta. Verifique sua conexão e tente novamente.",
+              "Erro ao criar conta. Verifique sua conexão e tente novamente.",
         });
         setTimeout(() => {
           setToast((prev) => ({ ...prev, visible: false }));
@@ -561,103 +560,102 @@ const HomeScreen = ({ navigation }) => {
   );
 
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      <View style={styles.root}>
-        <Toast
-          visible={toast.visible}
-          type={toast.type}
-          message={toast.message}
-        />
-        <View style={styles.container}>
-          <LinearGradient
-            colors={["#E8A0BF", "#F8C8DC", "#FDE4E9"]}
-            style={styles.gradient}
-          >
-            <View style={styles.header}>
-              <View style={styles.logoContainer}>
-                <LogoWithText />
-              </View>
-              <Text style={styles.subtitle}>
-                Seu melhor amigo a um 'swipe' de distância!
-              </Text>
+    <View style={styles.root}>
+      <Toast
+        visible={toast.visible}
+        type={toast.type}
+        message={toast.message}
+      />
+      <View style={styles.container}>
+        <LinearGradient
+          colors={["#E8A0BF", "#F8C8DC", "#FDE4E9"]}
+          style={styles.gradient}
+        >
+          <View style={styles.header}>
+            <View style={styles.logoContainer}>
+              <LogoWithText />
             </View>
-          </LinearGradient>
+            <Text style={styles.subtitle}>
+              Seu melhor amigo a um 'swipe' de distância!
+            </Text>
+          </View>
+        </LinearGradient>
 
-          <Image
-            source={require("../assets/cachorro.png")}
-            style={styles.dogImage}
-            resizeMode="contain"
+        <Image
+          source={require("../assets/cachorro.png")}
+          style={styles.dogImage}
+          resizeMode="contain"
+        />
+
+        {/* ActionSheet sempre renderizada. Sobe com o teclado só se não houver modal */}
+        {showForgotPassword ? (
+          actionSheet
+        ) : (
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "position"}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 0}
+            style={{ width: "100%" }}
+          >
+            {actionSheet}
+          </KeyboardAvoidingView>
+        )}
+
+        {/* Modal flutuante, só ele sobe com o teclado */}
+        {showForgotPassword && (
+          <ForgotPasswordModal
+            visible={showForgotPassword}
+            step={resetPasswordSteps}
+            email={email}
+            code={code}
+            password={password}
+            isCodeLoading={isCodeLoading}
+            isResetLoading={isResetLoading}
+            onClose={() => {
+              setShowForgotPassword(false);
+              setResetPasswordSteps(1);
+            }}
+            onBack={handleBackStepResetPassword}
+            onEmailChange={setEmail}
+            onCodeChange={setCode}
+            onGoToCodeStep={() => setResetPasswordSteps(2)}
+            onValidateCode={validateEmailCode}
+            onPasswordChange={setPassword}
+            onResetPassword={handleResetPassword}
           />
+        )}
 
-          {/* ActionSheet sempre renderizada. Sobe com o teclado só se não houver modal */}
-          {showForgotPassword ? (
-            actionSheet
-          ) : (
-            <KeyboardAvoidingView
-              behavior={Platform.OS === "ios" ? "padding" : "height"}
-              style={{ width: "100%" }}
+        {showImportantModal && (
+          <Modal
+            visible={showImportantModal}
+            onClose={() => { }}
+            title={"Importante"}
+          >
+            <Text style={styles.importantText}>
+              O abandono, a negligência, a falta de alimentação, a soltura irresponsável e o tratamento inadequado de animais são formas de maus-tratos.
+            </Text>
+            <Text style={styles.importantText}>
+              Essas práticas são sujeitas a penalidades, conforme:
+            </Text>
+            <Text style={styles.importantBullet}>
+              • Artigo 32 da Lei Federal nº 9.605/1998 (Lei de Crimes Ambientais)
+            </Text>
+            <Text style={styles.importantBullet}>
+              • Lei Municipal nº 13.131/2001 (Lei de Posse Responsável)
+            </Text>
+            <Text style={styles.importantTextLast}>
+              Sempre que tiver dúvidas, procure orientação com profissionais qualificados e evite informações de fontes não especializadas.
+            </Text>
+            <Button
+              variant="primary"
+              onPress={handleAcknowledgeImportant}
+              disabled={!canAcknowledgeImportant}
             >
-              {actionSheet}
-            </KeyboardAvoidingView>
-          )}
-
-          {/* Modal flutuante, só ele sobe com o teclado */}
-          {showForgotPassword && (
-            <ForgotPasswordModal
-              visible={showForgotPassword}
-              step={resetPasswordSteps}
-              email={email}
-              code={code}
-              password={password}
-              isCodeLoading={isCodeLoading}
-              isResetLoading={isResetLoading}
-              onClose={() => {
-                setShowForgotPassword(false);
-                setResetPasswordSteps(1);
-              }}
-              onBack={handleBackStepResetPassword}
-              onEmailChange={setEmail}
-              onCodeChange={setCode}
-              onGoToCodeStep={() => setResetPasswordSteps(2)}
-              onValidateCode={validateEmailCode}
-              onPasswordChange={setPassword}
-              onResetPassword={handleResetPassword}
-            />
-          )}
-
-          {showImportantModal && (
-            <Modal
-              visible={showImportantModal}
-              onClose={() => {}}
-              title={"Importante"}
-            >
-              <Text style={styles.importantText}>
-                O abandono, a negligência, a falta de alimentação, a soltura irresponsável e o tratamento inadequado de animais são formas de maus-tratos.
-              </Text>
-              <Text style={styles.importantText}>
-                Essas práticas são sujeitas a penalidades, conforme:
-              </Text>
-              <Text style={styles.importantBullet}>
-                • Artigo 32 da Lei Federal nº 9.605/1998 (Lei de Crimes Ambientais)
-              </Text>
-              <Text style={styles.importantBullet}>
-                • Lei Municipal nº 13.131/2001 (Lei de Posse Responsável)
-              </Text>
-              <Text style={styles.importantTextLast}>
-                Sempre que tiver dúvidas, procure orientação com profissionais qualificados e evite informações de fontes não especializadas.
-              </Text>
-              <Button
-                variant="primary"
-                onPress={handleAcknowledgeImportant}
-                disabled={!canAcknowledgeImportant}
-              >
-                Estou Ciente
-              </Button>
-            </Modal>
-          )}
-        </View>
+              Estou Ciente
+            </Button>
+          </Modal>
+        )}
       </View>
-    </TouchableWithoutFeedback>
+    </View>
   );
 };
 
