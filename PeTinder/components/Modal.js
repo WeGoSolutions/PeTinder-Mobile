@@ -13,7 +13,16 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-const ModalSheet = ({ children, visible = true, onClose, title, showCloseButton = false, showBackButton = false, onBack }) => {
+const ModalSheet = ({
+  children,
+  visible = true,
+  onClose,
+  title,
+  showCloseButton = false,
+  showBackButton = false,
+  onBack,
+  modalContainerStyle,
+}) => {
   return (
     <Modal
       transparent={true}
@@ -34,7 +43,7 @@ const ModalSheet = ({ children, visible = true, onClose, title, showCloseButton 
             onPress={onClose}
           />
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <View style={styles.modalContainer}>
+            <View style={[styles.modalContainer, modalContainerStyle]}>
               {showBackButton && (
                 <TouchableOpacity style={styles.backButton} onPress={onBack}>
                   <Ionicons name="arrow-back" size={24} color="#FFFFFF" />

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Alert, Text, StyleSheet, View, Pressable, ScrollView, Keyboard } from "react-native";
+import { Alert, Text, StyleSheet, View, Pressable, ScrollView, Keyboard, Platform } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import Modal from "../Modal";
 import Button from "../Button";
@@ -15,6 +15,21 @@ const UF_OPTIONS = [
 ];
 
 const stripNonDigits = (value) => String(value || "").replace(/\D/g, "");
+
+const dataUrlToBase64 = (value) => {
+  if (!value || typeof value !== "string") {
+    return null;
+  }
+
+  const marker = "base64,";
+  const markerIndex = value.indexOf(marker);
+
+  if (markerIndex === -1) {
+    return null;
+  }
+
+  return value.slice(markerIndex + marker.length);
+};
 
 const maskCpf = (value) => {
   const digits = stripNonDigits(value).slice(0, 11);
@@ -51,10 +66,52 @@ const NewUserStepsModal = ({ visible, step, onNext, onBack, onFinish }) => {
   const [isFetchingCep, setIsFetchingCep] = useState(false);
   const [lastCepLookup, setLastCepLookup] = useState("");
   const isStepOne = step === 1;
-  const preventClose = () => {};
+  const preventClose = () => { };
   const nome = "Usuário";
 
+  const extractBase64FromAsset = async (pickedAsset) => {
+    if (pickedAsset?.base64) {
+      return pickedAsset.base64;
+    }
+
+    const fromDataUrl = dataUrlToBase64(pickedAsset?.uri);
+
+    if (fromDataUrl) {
+      return fromDataUrl;
+    }
+
+    if (Platform.OS !== "web" || !pickedAsset?.uri) {
+      return null;
+    }
+
+    try {
+      const response = await fetch(pickedAsset.uri);
+      const blob = await response.blob();
+
+      const base64 = await new Promise((resolve) => {
+        const reader = new FileReader();
+
+        reader.onloadend = () => {
+          const result = typeof reader.result === "string" ? reader.result : "";
+          resolve(dataUrlToBase64(result));
+        };
+
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+
+      return base64;
+    } catch {
+      return null;
+    }
+  };
+
   const handleCameraPick = async () => {
+    if (Platform.OS === "web") {
+      await handleGalleryPick();
+      return;
+    }
+
     const permission = await ImagePicker.requestCameraPermissionsAsync();
 
     if (!permission.granted) {
@@ -79,15 +136,19 @@ const NewUserStepsModal = ({ visible, step, onNext, onBack, onFinish }) => {
       return;
     }
 
+    const base64 = await extractBase64FromAsset(pickedAsset);
+
     setProfileImageUri(pickedAsset.uri);
-    setProfileImageBase64(pickedAsset?.base64 || null);
+    setProfileImageBase64(base64);
   };
 
   const handleGalleryPick = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (Platform.OS !== "web") {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-    if (!permission.granted) {
-      return;
+      if (!permission.granted) {
+        return;
+      }
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -108,11 +169,18 @@ const NewUserStepsModal = ({ visible, step, onNext, onBack, onFinish }) => {
       return;
     }
 
+    const base64 = await extractBase64FromAsset(pickedAsset);
+
     setProfileImageUri(pickedAsset.uri);
-    setProfileImageBase64(pickedAsset?.base64 || null);
+    setProfileImageBase64(base64);
   };
 
   const handleImageInputPress = () => {
+    if (Platform.OS === "web") {
+      handleGalleryPick();
+      return;
+    }
+
     Alert.alert("Foto de perfil", "Escolha uma opção", [
       {
         text: "Tirar foto",
@@ -264,6 +332,33 @@ const NewUserStepsModal = ({ visible, step, onNext, onBack, onFinish }) => {
     }
   };
 
+  const handleSkipStepTwo = async () => {
+    if (isSubmittingOptionalData) {
+      return;
+    }
+
+    const userId = await getAuthUserId();
+
+    if (!userId) {
+      Alert.alert("Erro", "Usuário não encontrado na sessão.");
+      return;
+    }
+
+    try {
+      setIsSubmittingOptionalData(true);
+      await api.patch(`/users/${userId}/user-novo`);
+      onFinish?.();
+    } catch (error) {
+      const errorMsg =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Não foi possível finalizar agora.";
+      Alert.alert("Erro", errorMsg);
+    } finally {
+      setIsSubmittingOptionalData(false);
+    }
+  };
+
   return (
     <Modal
       visible={visible}
@@ -271,6 +366,7 @@ const NewUserStepsModal = ({ visible, step, onNext, onBack, onFinish }) => {
       title={"Complete seu perfil"}
       showBackButton={!isStepOne}
       onBack={onBack}
+      modalContainerStyle={!isStepOne ? styles.stepTwoModalContainer : undefined}
     >
       {isStepOne ? (
         <>
@@ -323,7 +419,7 @@ const NewUserStepsModal = ({ visible, step, onNext, onBack, onFinish }) => {
             />
 
             <Input label="Rua" value={rua} onChangeText={setRua} />
-            
+
             <View style={styles.addressRow}>
               <View style={styles.addressCol}>
                 <Input
@@ -401,6 +497,14 @@ const NewUserStepsModal = ({ visible, step, onNext, onBack, onFinish }) => {
             >
               Finalizar
             </Button>
+            <Button
+              variant="forgotPassword"
+              onPress={handleSkipStepTwo}
+              style={styles.button}
+              disabled={isSubmittingOptionalData}
+            >
+              Fazer depois
+            </Button>
           </View>
         </>
       )}
@@ -436,6 +540,9 @@ const styles = StyleSheet.create({
   formContainer: {
     width: "100%",
     marginBottom: 16,
+  },
+  stepTwoModalContainer: {
+    maxHeight: "91%",
   },
 
   addressRow: {
