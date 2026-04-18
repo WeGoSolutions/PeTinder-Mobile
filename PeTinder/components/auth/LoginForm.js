@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef } from "react";
 import { Text, StyleSheet } from "react-native";
 import Input from "../Input";
 import Button from "../Button";
@@ -14,6 +14,8 @@ const LoginForm = ({
   onLogin,
   onForgotPassword,
 }) => {
+  const passwordInputRef = useRef(null);
+
   return (
     <>
       {errorMessage ? <Text style={styles.errorLabel}>{errorMessage}</Text> : null}
@@ -23,13 +25,25 @@ const LoginForm = ({
         onChangeText={onEmailChange}
         keyboardType="email-address"
         autoCapitalize="none"
+        autoComplete="email"
+        textContentType="emailAddress"
+        autoCorrect={false}
+        returnKeyType="next"
+        blurOnSubmit={false}
+        onSubmitEditing={() => passwordInputRef.current?.focus()}
         error={errors.email}
       />
       <Input
+        ref={passwordInputRef}
         label="Senha"
         value={password}
         onChangeText={onPasswordChange}
         secureTextEntry
+        autoComplete="password"
+        textContentType="password"
+        autoCorrect={false}
+        returnKeyType="done"
+        onSubmitEditing={onLogin}
         error={errors.password}
       />
       <Button

@@ -1,5 +1,16 @@
 import React from 'react';
-import { Modal, View, StyleSheet, TouchableOpacity, Text, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard } from 'react-native';
+import {
+  Modal,
+  View,
+  StyleSheet,
+  TouchableOpacity,
+  Text,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableWithoutFeedback,
+  Keyboard,
+  ScrollView,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 const ModalSheet = ({ children, visible = true, onClose, title, showCloseButton = false, showBackButton = false, onBack }) => {
@@ -13,13 +24,15 @@ const ModalSheet = ({ children, visible = true, onClose, title, showCloseButton 
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 16 : 0}
         style={{ flex: 1 }}
       >
-        <TouchableOpacity 
-          style={styles.modalOverlay} 
-          activeOpacity={1} 
-          onPress={onClose}
-        >
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={styles.backdrop}
+            activeOpacity={1}
+            onPress={onClose}
+          />
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <View style={styles.modalContainer}>
               {showBackButton && (
@@ -33,10 +46,16 @@ const ModalSheet = ({ children, visible = true, onClose, title, showCloseButton 
                 </TouchableOpacity>
               )}
               {title && <Text style={styles.title}>{title}</Text>}
-              {children}
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.contentContainer}
+              >
+                {children}
+              </ScrollView>
             </View>
           </TouchableWithoutFeedback>
-        </TouchableOpacity>
+        </View>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -53,15 +72,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
   },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
   modalContainer: {
     backgroundColor: '#1A1A1A',
     borderRadius: 30,
     paddingHorizontal: 20,
     paddingVertical: 30,
     zIndex: 10,
-    width: '90%',
-    minWidth: 380,
+    width: '100%',
+    maxWidth: 420,
+    maxHeight: '85%',
     alignItems: 'stretch',
+  },
+  contentContainer: {
+    paddingBottom: 8,
   },
   closeButton: {
     position: 'absolute',

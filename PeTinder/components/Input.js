@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, forwardRef } from 'react';
 import { View, TextInput, Text, StyleSheet, Animated, Pressable, Platform, TouchableOpacity } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -30,7 +30,7 @@ const formatDate = (value) => {
   return `${day} de ${month} de ${year}`;
 };
 
-const Input = ({
+const Input = forwardRef(({
   label,
   labelColor,
   value,
@@ -46,7 +46,13 @@ const Input = ({
   readOnly,
   disabled,
   forceActiveStyle,
-}) => {
+  returnKeyType,
+  onSubmitEditing,
+  blurOnSubmit,
+  autoCorrect,
+  autoComplete,
+  textContentType,
+}, ref) => {
   const [isFocused, setIsFocused] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const isDate = variant === 'date';
@@ -82,7 +88,10 @@ const Input = ({
 
   return (
     <View style={styles.container}>
-      <Animated.Text style={[styles.label, labelStyle, labelColor ? { color: labelColor } : null]}>
+      <Animated.Text
+        pointerEvents="none"
+        style={[styles.label, labelStyle, labelColor ? { color: labelColor } : null]}
+      >
         {label}
       </Animated.Text>
       {isDate ? (
@@ -157,6 +166,7 @@ const Input = ({
         </>
       ) : (
         <TextInput
+          ref={ref}
           style={[styles.input, error && styles.inputError, isDisabled && styles.inputDisabled]}
           value={value}
           onChangeText={onChangeText}
@@ -165,12 +175,20 @@ const Input = ({
           secureTextEntry={secureTextEntry}
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
+          returnKeyType={returnKeyType}
+          onSubmitEditing={onSubmitEditing}
+          blurOnSubmit={blurOnSubmit}
+          autoCorrect={autoCorrect}
+          autoComplete={autoComplete}
+          textContentType={textContentType}
           editable={!isReadOnly && !isDisabled}
         />
       )}
     </View>
   );
-};
+});
+
+Input.displayName = 'Input';
 
 const styles = StyleSheet.create({
   container: {
