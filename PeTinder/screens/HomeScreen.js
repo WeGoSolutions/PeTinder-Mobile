@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { Alert } from "react-native";
 import {
   View,
   Text,
@@ -93,14 +94,27 @@ const HomeScreen = ({ navigation }) => {
     setResetPasswordSteps(1);
   };
 
-  const validateEmailCode = () => {
-    setIsCodeLoading(true);
-    setTimeout(() => {
-      setIsCodeLoading(false);
+const validateEmailCode = (codeDigitado, codeGerado, isValid) => {
+  setIsCodeLoading(true);
+
+  setTimeout(() => {
+    setIsCodeLoading(false);
+
+    if (!isValid) {
+      Alert.alert("Erro", "O código expirou. Solicite outro.");
+      return;
+    }
+
+    if (codeDigitado !== codeGerado) {
+      Alert.alert("Erro", "Código inválido.");
       setCode("");
-      setResetPasswordSteps(3);
-    }, 3000);
-  };
+      return;
+    }
+
+    setCode("");
+    setResetPasswordSteps(3);
+  }, 3000);
+};
 
   const [isResetLoading, setIsResetLoading] = useState(false);
   const handleResetPassword = () => {

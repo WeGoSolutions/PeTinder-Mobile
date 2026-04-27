@@ -61,17 +61,20 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   input: {
-    width: 44,
+    width: 42,
     height: 56,
     borderWidth: 2,
     borderColor: '#F8C8DC',
     borderRadius: 8,
     textAlign: 'center',
+    textAlignVertical: 'center',
     fontSize: 28,
     color: '#fff',
     backgroundColor: 'transparent',
     marginHorizontal: 2,
     fontFamily: 'Poppins_600SemiBold',
+    paddingVertical: 0,
+    lineHeight: 56,
   },
 });
 

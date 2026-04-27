@@ -196,7 +196,7 @@ const ConfigScreen = ({ navigation }) => {
                 colors={["#E8A0BF", "#F8C8DC", "#FDE4E9"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
-                style={{ height: 2, width: "100%", marginTop: 14, borderRadius: 2 }}
+                style={{ height: 2, width: "100%", marginTop: 11, borderRadius: 2 }}
               />
             </View>
           </View>
@@ -326,7 +326,6 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderRadius: 8,
   },
   modalText: {
     fontSize: 16,
