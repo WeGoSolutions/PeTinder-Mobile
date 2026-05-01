@@ -7,6 +7,7 @@ import { UserInfo } from "../components/config/UserInfo";
 import { ContentTabs } from "../components/config/ContentTabs";
 import { ContaTab } from "../components/config/ContaTab";
 import Modal from "../components/Modal";
+import Toast from "../components/Toast";
 import api from "../api";
 import { getAuthUserId } from "../storage/authSession";
 import { EditProfileTab } from "../components/config/EditProfileTab";
@@ -57,6 +58,11 @@ const ConfigScreen = ({ navigation }) => {
   const [userId, setUserId] = useState(null);
   const [imageBase64, setImageBase64] = useState(null);
   const [localImageUri, setLocalImageUri] = useState(null);
+  const [imageUploadToast, setImageUploadToast] = useState({
+    visible: false,
+    type: "success",
+    message: "",
+  });
 
   const loadUserProfile = async () => {
     try {
@@ -139,6 +145,16 @@ const ConfigScreen = ({ navigation }) => {
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   useEffect(() => {
+    if (!imageUploadToast.visible) return;
+
+    const timer = setTimeout(() => {
+      setImageUploadToast((prev) => ({ ...prev, visible: false }));
+    }, 2200);
+
+    return () => clearTimeout(timer);
+  }, [imageUploadToast.visible]);
+
+  useEffect(() => {
     const showSub = Keyboard.addListener("keyboardDidShow", () => setIsKeyboardVisible(true));
     const hideSub = Keyboard.addListener("keyboardDidHide", () => setIsKeyboardVisible(false));
     return () => {
@@ -152,10 +168,64 @@ const ConfigScreen = ({ navigation }) => {
     setLocalImageUri(uri);
   };
 
+  const handleSaveImage = async () => {
+    if (!imageBase64) {
+      setImageUploadToast({
+        visible: true,
+        type: "error",
+        message: "Nenhuma nova imagem selecionada.",
+      });
+      return;
+    }
+
+    if (!userId) {
+      const id = await getAuthUserId();
+      if (!id) {
+        setImageUploadToast({
+          visible: true,
+          type: "error",
+          message: "Usuário não encontrado na sessão.",
+        });
+        return;
+      }
+      setUserId(id);
+    }
+
+    try {
+      await api.post(`/users/${userId}/imagem`, {
+        imagemUsuario: imageBase64,
+      });
+
+      setImageBase64(null);
+      setUserProfile((prev) =>
+        prev ? { ...prev, imagemUrl: localImageUri } : prev
+      );
+      setImageUploadToast({
+        visible: true,
+        type: "success",
+        message: "Imagem salva com sucesso!",
+      });
+    } catch (error) {
+      const errorMsg =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Não foi possível salvar a imagem.";
+      setImageUploadToast({
+        visible: true,
+        type: "error",
+        message: errorMsg,
+      });
+      console.log("Erro ao enviar imagem:", error);
+    }
+  };
+
   const handleCancelEditing = () => {
     setIsEditing(false);
-    setLocalImageUri(null);
-    setImageBase64(null);
+
+    if (imageBase64) {
+      setLocalImageUri(null);
+      setImageBase64(null);
+    }
   };
 
   return (
@@ -170,6 +240,7 @@ const ConfigScreen = ({ navigation }) => {
           isEditing={isEditing}
           onEditProfilePress={() => setIsEditing(true)}
           onImageSelected={handleImageSelected}
+          onSaveImagePress={handleSaveImage}
           localImageUri={localImageUri}
         />
       )}
@@ -217,7 +288,6 @@ const ConfigScreen = ({ navigation }) => {
               userId={userId}
               nomeUser={userProfile?.nome || "Sem nome"}
               navigation={navigation}
-              imageBase64={imageBase64}
             />
           </View>
         </KeyboardAvoidingView>
@@ -261,6 +331,11 @@ const ConfigScreen = ({ navigation }) => {
           </View>
         </Pressable>
       </Modal>
+      <Toast
+        visible={imageUploadToast.visible}
+        type={imageUploadToast.type}
+        message={imageUploadToast.message}
+      />
     </View>
   );
 };

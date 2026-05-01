@@ -1,11 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Pressable,
-} from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import Input from "../Input";
 import api from "../../api.js";
 import { CommonActions } from "@react-navigation/native";
@@ -26,7 +20,9 @@ const labelMap = {
 };
 
 const formatCPF = (value) => {
-  const digits = String(value || "").replace(/\D/g, "").slice(0, 11);
+  const digits = String(value || "")
+    .replace(/\D/g, "")
+    .slice(0, 11);
   return digits
     .replace(/(\d{3})(\d)/, "$1.$2")
     .replace(/(\d{3})(\d)/, "$1.$2")
@@ -34,7 +30,9 @@ const formatCPF = (value) => {
 };
 
 const formatCEP = (value) => {
-  const digits = String(value || "").replace(/\D/g, "").slice(0, 8);
+  const digits = String(value || "")
+    .replace(/\D/g, "")
+    .slice(0, 8);
   return digits.replace(/(\d{5})(\d{1,3})$/, "$1-$2");
 };
 
@@ -92,9 +90,10 @@ export const EditProfileTab = ({
   userId,
   nomeUser,
   navigation,
-  imageBase64
 }) => {
-  const [editedPersonalData, setEditedPersonalData] = useState(personalData || {});
+  const [editedPersonalData, setEditedPersonalData] = useState(
+    personalData || {},
+  );
   const [editedAddressData, setEditedAddressData] = useState(addressData || {});
   const [errors, setErrors] = useState({});
   const lastCepLookup = useRef("");
@@ -109,7 +108,6 @@ export const EditProfileTab = ({
   useEffect(() => {
     setCpfLocked(!!personalData.cpf);
   }, [personalData]);
-
 
   useEffect(() => {
     setEditedPersonalData(personalData || {});
@@ -136,20 +134,17 @@ export const EditProfileTab = ({
       lastCepLookup.current = cepDigits;
 
       const response = await fetch(
-        `https://viacep.com.br/ws/${cepDigits}/json/`
+        `https://viacep.com.br/ws/${cepDigits}/json/`,
       );
       const result = await response.json();
 
       if (result?.erro) return;
 
-      if (result?.logradouro)
-        handleAddressChange("rua", result.logradouro);
+      if (result?.logradouro) handleAddressChange("rua", result.logradouro);
 
-      if (result?.localidade)
-        handleAddressChange("cidade", result.localidade);
+      if (result?.localidade) handleAddressChange("cidade", result.localidade);
 
-      if (result?.uf)
-        handleAddressChange("uf", result.uf);
+      if (result?.uf) handleAddressChange("uf", result.uf);
     } catch (error) {
       console.log("Erro ao buscar CEP:", error);
     }
@@ -177,20 +172,16 @@ export const EditProfileTab = ({
     const uf = String(editedAddressData.uf || "").trim();
 
     if (!email) newErrors.email = "Email obrigatório";
-    else if (!/\S+@\S+\.\S+/.test(email))
-      newErrors.email = "Email inválido";
+    else if (!/\S+@\S+\.\S+/.test(email)) newErrors.email = "Email inválido";
 
-    if (!cpf || cpf.length !== 11)
-      newErrors.cpf = "CPF inválido";
+    if (!cpf || cpf.length !== 11) newErrors.cpf = "CPF inválido";
 
-    if (!cep || cep.length !== 8)
-      newErrors.cep = "CEP inválido";
+    if (!cep || cep.length !== 8) newErrors.cep = "CEP inválido";
 
     if (!rua) newErrors.rua = "Rua obrigatória";
     if (!numero) newErrors.numero = "Número obrigatório";
     if (!cidade) newErrors.cidade = "Cidade obrigatória";
-    if (!uf || uf.length !== 2)
-      newErrors.uf = "UF inválida";
+    if (!uf || uf.length !== 2) newErrors.uf = "UF inválida";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -236,7 +227,7 @@ export const EditProfileTab = ({
       const result = await updateUserDataConfig(
         resolvedUserId,
         payload,
-        editedPersonalData.nome
+        editedPersonalData.nome,
       );
 
       if (!result.success) {
@@ -262,21 +253,11 @@ export const EditProfileTab = ({
             CommonActions.reset({
               index: 0,
               routes: [{ name: "Home" }],
-            })
+            }),
           );
         }, 2500);
 
         return;
-      }
-
-      if (imageBase64) {
-        try {
-          await api.post(`/users/${resolvedUserId}/imagem`, {
-            imagemUsuario: imageBase64,
-          });
-        } catch (error) {
-          console.log("Erro ao enviar imagem (ignorado):", error);
-        }
       }
 
       setToast({
@@ -290,7 +271,6 @@ export const EditProfileTab = ({
       setTimeout(() => {
         onSave?.();
       }, 1500);
-
     } catch (error) {
       console.log("Erro inesperado ao salvar:", error);
       setToast({
@@ -320,9 +300,7 @@ export const EditProfileTab = ({
                 label={labelMap.dataNasc}
                 variant="date"
                 dateValue={parseDateValue(value)}
-                onDateChange={(date) =>
-                  handlePersonalChange(key, date)
-                }
+                onDateChange={(date) => handlePersonalChange(key, date)}
                 disabled={true}
                 forceActiveStyle={true}
                 error={!!errors[key]}
@@ -330,11 +308,7 @@ export const EditProfileTab = ({
             ) : (
               <Input
                 label={labelMap[key] || key}
-                value={
-                  key === "cpf"
-                    ? formatCPF(value)
-                    : String(value || "")
-                }
+                value={key === "cpf" ? formatCPF(value) : String(value || "")}
                 onChangeText={(text) => {
                   if (key === "cpf") {
                     const digits = text.replace(/\D/g, "").slice(0, 11);
@@ -352,9 +326,7 @@ export const EditProfileTab = ({
               />
             )}
 
-            {errors[key] && (
-              <Text style={styles.errorText}>{errors[key]}</Text>
-            )}
+            {errors[key] && <Text style={styles.errorText}>{errors[key]}</Text>}
           </View>
         ))}
       </View>
@@ -370,9 +342,7 @@ export const EditProfileTab = ({
             keyboardType="numeric"
             error={!!errors.cep}
           />
-          {errors.cep && (
-            <Text style={styles.errorText}>{errors.cep}</Text>
-          )}
+          {errors.cep && <Text style={styles.errorText}>{errors.cep}</Text>}
         </View>
 
         {["rua", "numero", "complemento", "cidade", "uf"].map((key) => (
@@ -380,14 +350,10 @@ export const EditProfileTab = ({
             <Input
               label={labelMap[key]}
               value={String(editedAddressData[key] || "")}
-              onChangeText={(text) =>
-                handleAddressChange(key, text)
-              }
+              onChangeText={(text) => handleAddressChange(key, text)}
               error={!!errors[key]}
             />
-            {errors[key] && (
-              <Text style={styles.errorText}>{errors[key]}</Text>
-            )}
+            {errors[key] && <Text style={styles.errorText}>{errors[key]}</Text>}
           </View>
         ))}
       </View>

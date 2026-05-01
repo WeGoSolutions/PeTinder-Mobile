@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Alert } from "react-native";
 import {
   View,
   Text,
@@ -101,12 +100,26 @@ const validateEmailCode = (codeDigitado, codeGerado, isValid) => {
     setIsCodeLoading(false);
 
     if (!isValid) {
-      Alert.alert("Erro", "O código expirou. Solicite outro.");
+      setToast({
+        visible: true,
+        type: "error",
+        message: "O código expirou. Solicite outro.",
+      });
+      setTimeout(() => {
+        setToast((prev) => ({ ...prev, visible: false }));
+      }, 2500);
       return;
     }
 
     if (codeDigitado !== codeGerado) {
-      Alert.alert("Erro", "Código inválido.");
+      setToast({
+        visible: true,
+        type: "error",
+        message: "Código inválido.",
+      });
+      setTimeout(() => {
+        setToast((prev) => ({ ...prev, visible: false }));
+      }, 2500);
       setCode("");
       return;
     }

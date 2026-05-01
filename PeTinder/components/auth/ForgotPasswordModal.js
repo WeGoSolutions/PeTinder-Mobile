@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { Text, StyleSheet, Alert } from "react-native";
+import { Text, StyleSheet } from "react-native";
 import emailjs from "@emailjs/react-native";
 
 import Modal from "../Modal";
 import Input from "../Input";
 import Button from "../Button";
 import CodeInput from "../CodeInput";
+import Toast from "../Toast";
 
 import api from "../../api";
 
@@ -42,6 +43,12 @@ const ForgotPasswordModal = ({
 
   const [generatedCode, setGeneratedCode] = useState("");
   const [isValid, setIsValid] = useState(false);
+
+  const [toast, setToast] = useState({
+    visible: false,
+    type: "success",
+    message: "",
+  });
 
   function gerarCodigo() {
     return Math.floor(100000 + Math.random() * 900000).toString();
@@ -162,10 +169,11 @@ const ForgotPasswordModal = ({
 
       onGoToCodeStep?.(codigo);
     } catch (error) {
-      Alert.alert(
-        "Erro",
-        error?.message || "Não foi possível enviar o código."
-      );
+      setToast({
+        visible: true,
+        type: "error",
+        message: error?.message || "Não foi possível enviar o código.",
+      });
 
       setIsButtonDisabled(false);
     } finally {
@@ -183,10 +191,21 @@ const ForgotPasswordModal = ({
     const response = await changePassword(password, email);
 
     if (response.success) {
-      Alert.alert("Sucesso", response.message);
-      onClose?.();
+      setToast({
+        visible: true,
+        type: "success",
+        message: response.message,
+      });
+
+      setTimeout(() => {
+        onClose?.();
+      }, 2000);
     } else {
-      Alert.alert("Erro", response.message);
+      setToast({
+        visible: true,
+        type: "error",
+        message: response.message,
+      });
     }
   }
 
@@ -203,101 +222,110 @@ const ForgotPasswordModal = ({
   }, [visible]);
 
   return (
-    <Modal
-      visible={visible}
-      onClose={onClose}
-      title="Esqueci minha senha"
-      showCloseButton={step === 1}
-      showBackButton={step === 2 || step === 3}
-      onBack={onBack}
-    >
-      {step === 1 ? (
-        <>
-          <Text style={styles.forgotPasswordText}>
-            Informe seu e-mail para enviarmos o código de redefinição de senha.
-          </Text>
+    <>
+      <Modal
+        visible={visible}
+        onClose={onClose}
+        title="Esqueci minha senha"
+        showCloseButton={step === 1}
+        showBackButton={step === 2 || step === 3}
+        onBack={onBack}
+      >
+        {step === 1 ? (
+          <>
+            <Text style={styles.forgotPasswordText}>
+              Informe seu e-mail para enviarmos o código de redefinição de senha.
+            </Text>
 
-          <Input
-            label="Email"
-            value={email}
-            onChangeText={(text) => {
-              onEmailChange(text);
-              setEmailError("");
-            }}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
+            <Input
+              label="Email"
+              value={email}
+              onChangeText={(text) => {
+                onEmailChange(text);
+                setEmailError("");
+              }}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
 
-          {!!emailError && (
-            <Text style={styles.errorText}>{emailError}</Text>
-          )}
+            {!!emailError && (
+              <Text style={styles.errorText}>{emailError}</Text>
+            )}
 
-          <Button
-            variant="primary"
-            onPress={handleSendCode}
-            isLoading={isSendingCode}
-            disabled={isButtonDisabled}
-          >
-            Enviar Código
-          </Button>
-        </>
-      ) : step === 2 ? (
-        <>
-          <CodeInput
-            value={code}
-            onChangeCode={onCodeChange}
-          />
+            <Button
+              variant="primary"
+              onPress={handleSendCode}
+              isLoading={isSendingCode}
+              disabled={isButtonDisabled}
+            >
+              Enviar Código
+            </Button>
+          </>
+        ) : step === 2 ? (
+          <>
+            <Text style={styles.inserirCodigoText}>
+              Insira o código enviado para seu e-mail.
+            </Text>
 
-          <Button
-            variant="primary"
-            onPress={handleValidateCode}
-            isLoading={isCodeLoading}
-            style={{ marginTop: 16 }}
-          >
-            Enviar
-          </Button>
-        </>
-      ) : (
-        <>
-          <Text style={styles.newPasswordText}>
-            Crie uma nova senha para sua conta.
-          </Text>
+            <CodeInput value={code} onChangeCode={onCodeChange} />
 
-          <Input
-            label="Nova Senha"
-            value={password}
-            onChangeText={(text) => {
-              onPasswordChange(text);
-              setPasswordError("");
-            }}
-            secureTextEntry
-          />
+            <Button
+              variant="primary"
+              onPress={handleValidateCode}
+              isLoading={isCodeLoading}
+              style={{ marginTop: 16 }}
+            >
+              Enviar
+            </Button>
+          </>
+        ) : (
+          <>
+            <Text style={styles.newPasswordText}>
+              Crie uma nova senha para sua conta.
+            </Text>
 
-          <Input
-            label="Confirmar Senha"
-            value={confirmPassword}
-            onChangeText={(text) => {
-              setConfirmPassword(text);
-              setPasswordError("");
-            }}
-            secureTextEntry
-          />
+            <Input
+              label="Nova Senha"
+              value={password}
+              onChangeText={(text) => {
+                onPasswordChange(text);
+                setPasswordError("");
+              }}
+              secureTextEntry
+            />
 
-          {!!passwordError && (
-            <Text style={styles.errorText}>{passwordError}</Text>
-          )}
+            <Input
+              label="Confirmar Senha"
+              value={confirmPassword}
+              onChangeText={(text) => {
+                setConfirmPassword(text);
+                setPasswordError("");
+              }}
+              secureTextEntry
+            />
 
-          <Button
-            variant="primary"
-            onPress={handleResetPassword}
-            isLoading={isResetLoading}
-            disabled={isResetLoading}
-          >
-            Alterar Senha
-          </Button>
-        </>
-      )}
-    </Modal>
+            {!!passwordError && (
+              <Text style={styles.errorText}>{passwordError}</Text>
+            )}
+
+            <Button
+              variant="primary"
+              onPress={handleResetPassword}
+              isLoading={isResetLoading}
+              disabled={isResetLoading}
+            >
+              Alterar Senha
+            </Button>
+          </>
+        )}
+      </Modal>
+
+      <Toast
+        visible={toast.visible}
+        type={toast.type}
+        message={toast.message}
+      />
+    </>
   );
 };
 
@@ -320,7 +348,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginBottom: 10,
   },
+
+  inserirCodigoText: {
+    fontSize: 14,
+    color: "#FFF",
+    marginBottom: 10,
+    textAlign: "center",
+  },
 });
 
 export default ForgotPasswordModal;
-//backup

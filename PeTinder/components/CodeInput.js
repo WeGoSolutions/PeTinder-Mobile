@@ -10,21 +10,38 @@ const CodeInput = ({ value = '', onChangeCode }) => {
   const handleChange = (text, idx) => {
     // Se colar vários dígitos, distribui
     if (text.length > 1) {
-      const newCode = text.slice(0, BOXES);
-      onChangeCode(newCode);
+      const cleanText = text.replace(/[^0-9]/g, '').slice(0, BOXES);
+      onChangeCode(cleanText);
       // Foca no último dígito colado
-      const next = Math.min(newCode.length, BOXES - 1);
+      const next = Math.min(cleanText.length, BOXES - 1);
       setTimeout(() => inputs.current[next]?.focus(), 10);
       return;
     }
-    // Atualiza apenas o dígito atual
-    let newArr = codeArr.slice();
-    newArr[idx] = text.replace(/[^0-9]/g, '');
-    // Move para o próximo campo se digitou
-    if (text && idx < BOXES - 1) {
-      setTimeout(() => inputs.current[idx + 1]?.focus(), 10);
+
+    // Se digitou algo válido
+    if (text) {
+      const cleanText = text.replace(/[^0-9]/g, '');
+      if (!cleanText) return;
+
+      let newArr = codeArr.slice();
+      newArr[idx] = cleanText;
+      onChangeCode(newArr.join('').replace(/ /g, ''));
+
+      // Move para o próximo campo se digitou
+      if (idx < BOXES - 1) {
+        setTimeout(() => inputs.current[idx + 1]?.focus(), 10);
+      }
+    } else {
+      // Se apagou (text vazio)
+      let newArr = codeArr.slice();
+      newArr[idx] = '';
+      onChangeCode(newArr.join('').replace(/ /g, ''));
+
+      // Retorna para o campo anterior se tiver
+      if (idx > 0) {
+        setTimeout(() => inputs.current[idx - 1]?.focus(), 10);
+      }
     }
-    onChangeCode(newArr.join('').replace(/ /g, ''));
   };
 
   const handleKeyPress = (e, idx) => {
@@ -47,6 +64,7 @@ const CodeInput = ({ value = '', onChangeCode }) => {
           onKeyPress={e => handleKeyPress(e, idx)}
           autoFocus={idx === 0}
           returnKeyType="next"
+          selectionColor="rgba(248, 200, 220, 0.3)"
         />
       ))}
     </View>
