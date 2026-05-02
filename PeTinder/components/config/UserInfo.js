@@ -5,7 +5,16 @@ import * as ImagePicker from "expo-image-picker";
 import { Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-const UserInfo = ({ nome, userImageURL, onEditProfilePress, isEditing, onReloadUser, onImageSelected, localImageUri }) => {
+const UserInfo = ({
+  nome,
+  userImageURL,
+  onEditProfilePress,
+  isEditing,
+  onReloadUser,
+  onImageSelected,
+  localImageUri,
+  onSaveImagePress,
+}) => {
 
   const handleImagePress = () => {
     Alert.alert("Foto de perfil", "Escolha uma opção", [
@@ -65,7 +74,6 @@ const UserInfo = ({ nome, userImageURL, onEditProfilePress, isEditing, onReloadU
           />
           {isEditing && (
             <View style={styles.imageMask}>
-              {/* <Text style={styles.imageMaskText}>✏️</Text> */}
               <Ionicons style={styles.imageMaskText} name="camera" size={30} color="#000" />
               <Text style={styles.imageMaskLabel}>Editar</Text>
             </View>
@@ -75,24 +83,26 @@ const UserInfo = ({ nome, userImageURL, onEditProfilePress, isEditing, onReloadU
 
       <View style={styles.infoContainer}>
         <Text style={styles.name}>Olá, {nome}</Text>
-        {!isEditing && (
-          <Pressable
-            onPress={onEditProfilePress}
-            style={({ pressed }) => [
-              styles.editButtonPressable,
-              pressed && styles.editButtonPressed,
-            ]}
+
+        {/* ✅ BOTÃO UNIFICADO */}
+        <Pressable
+          onPress={isEditing ? onSaveImagePress : onEditProfilePress}
+          style={({ pressed }) => [
+            styles.editButtonPressable,
+            pressed && styles.editButtonPressed,
+          ]}
+        >
+          <LinearGradient
+            colors={["#E8A0BF", "#F8C8DC", "#FDE4E9"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.editButton}
           >
-            <LinearGradient
-              colors={["#E8A0BF", "#F8C8DC", "#FDE4E9"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.editButton}
-            >
-              <Text style={styles.editButtonText}>Editar Perfil</Text>
-            </LinearGradient>
-          </Pressable>
-        )}
+            <Text style={styles.editButtonText}>
+              {isEditing ? "Salvar Foto" : "Editar Perfil"}
+            </Text>
+          </LinearGradient>
+        </Pressable>
       </View>
     </View>
   );
@@ -119,10 +129,6 @@ const styles = StyleSheet.create({
   },
   imageMask: {
     position: "absolute",
-    // bottom: 0,
-    // left: 0,
-    // right: 0,
-    // height: 50,
     height: "100%",
     width: "100%",
     backgroundColor: "rgba(0,0,0,0.5)",
