@@ -25,6 +25,7 @@ const PetImageCarousel = ({
   onSwipeRight,
   onSwipeLeft,
   onSwipeProgress,
+  swipeEnabled = true,
 }) => {
   const gallery = useMemo(() => (images.length ? images : []), [images]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -62,6 +63,8 @@ const PetImageCarousel = ({
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, gestureState) => {
         return (
+          swipeEnabled
+          &&
           !isSwipeAnimatingRef.current
           && Math.abs(gestureState.dx) > 4
           && Math.abs(gestureState.dx) > Math.abs(gestureState.dy)
@@ -72,6 +75,18 @@ const PetImageCarousel = ({
         onSwipeProgress?.(gestureState.dx);
       },
       onPanResponderRelease: (_, gestureState) => {
+        if (!swipeEnabled) {
+          Animated.spring(swipeTranslateX, {
+            toValue: 0,
+            useNativeDriver: true,
+            bounciness: 0,
+            speed: 24,
+          }).start(() => {
+            onSwipeProgress?.(0);
+          });
+          return;
+        }
+
         const shouldSwipeRight =
           gestureState.dx > SWIPE_TRIGGER_DISTANCE || gestureState.vx > SWIPE_TRIGGER_VELOCITY;
         const shouldSwipeLeft =

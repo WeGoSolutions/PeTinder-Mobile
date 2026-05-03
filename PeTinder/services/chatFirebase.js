@@ -1,8 +1,10 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDoc,
+  getDocs,
   increment,
   onSnapshot,
   orderBy,
@@ -529,4 +531,28 @@ export const setTypingStatus = async ({
     payload,
     { merge: true },
   );
+};
+
+export const deleteChat = async (chatId) => {
+  if (!hasRequiredFirebaseConfig || !db || !chatId) {
+    return;
+  }
+
+  try {
+    // Deletar todas as mensagens da subcollection
+    const messagesRef = collection(db, 'chats', chatId, 'messages');
+    const messagesSnapshot = await getDocs(messagesRef);
+    
+    const deletePromises = messagesSnapshot.docs.map((messageDoc) =>
+      deleteDoc(doc(db, 'chats', chatId, 'messages', messageDoc.id))
+    );
+    
+    await Promise.all(deletePromises);
+
+    // Deletar o documento de chat
+    await deleteDoc(doc(db, 'chats', chatId));
+  } catch (error) {
+    console.error('Erro ao deletar chat do Firebase:', error?.message);
+    throw error;
+  }
 };

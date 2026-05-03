@@ -1,4 +1,5 @@
 import { StatusBar } from "expo-status-bar";
+import { useEffect, useState } from "react";
 import {
   useFonts,
   Poppins_400Regular,
@@ -16,6 +17,7 @@ import ConfigScreen from "./screens/ConfigScreen";
 import ChatScreen from "./screens/ChatScreen";
 import ChatConversationScreen from "./screens/ChatConversationScreen";
 import LikedScreen from "./screens/LikedScreen";
+import { getAuthSession } from "./storage/authSession";
 
 const Stack = createNativeStackNavigator();
 
@@ -27,7 +29,25 @@ export default function App() {
     Poppins_700Bold,
   });
 
-  if (!fontsLoaded) return null;
+  const [isUserLoggedIn, setIsUserLoggedIn] = useState(null); // null = carregando
+
+  useEffect(() => {
+    const checkAuthSession = async () => {
+      try {
+        const session = await getAuthSession();
+        setIsUserLoggedIn(Boolean(session && session.token && session.id));
+      } catch (error) {
+        console.error('Erro ao verificar sessão:', error);
+        setIsUserLoggedIn(false);
+      }
+    };
+
+    checkAuthSession();
+  }, []);
+
+  if (!fontsLoaded || isUserLoggedIn === null) {
+    return null; // Splash screen enquanto carrega
+  }
 
   return (
     <SafeAreaProvider>
@@ -41,6 +61,7 @@ export default function App() {
             headerBlurEffect: "none",
             headerTransparent: false,
           }}
+          initialRouteName={isUserLoggedIn ? "PeTinder" : "Home"}
         >
           <Stack.Screen
             name="Home"
@@ -51,7 +72,9 @@ export default function App() {
           <Stack.Screen
             name="PeTinder"
             component={PeTinderScreen}
-            options={{ gestureEnabled: false }}
+            options={({ route }) => ({
+              gestureEnabled: Boolean(route?.params?.readOnlyPreview),
+            })}
           />
 
           <Stack.Screen

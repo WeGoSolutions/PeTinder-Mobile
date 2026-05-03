@@ -9,12 +9,13 @@ import {
   Modal,
   TextInput,
 } from 'react-native';
-import { useRoute } from '@react-navigation/native';
+import { useRoute, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CustomHeader } from '../components/CustomHeader';
 import ChatCard from '../components/Chat/ChatCard';
 import api from '../api';
 import { getAuthSession } from '../storage/authSession';
+import Toast from '../components/Toast';
 import {
   buildDirectChatId,
   createGroupChat,
@@ -81,10 +82,65 @@ const ChatScreen = ({ navigation }) => {
   const [selectedGroupUserIds, setSelectedGroupUserIds] = useState([]);
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [groupCreateError, setGroupCreateError] = useState('');
+  const [toast, setToast] = useState({
+    visible: false,
+    type: 'success',
+    message: '',
+  });
+  const shouldRefresh = Boolean(route.params?.shouldRefresh);
+  const routeToastMessage = String(route.params?.toastMessage || '');
+  const routeToastType = route.params?.toastType === 'error' ? 'error' : 'success';
 
   useEffect(() => {
     setIsLoading(!(isPetsLoaded && isChatsLoaded));
   }, [isPetsLoaded, isChatsLoaded]);
+
+  useEffect(() => {
+    if (!shouldRefresh) {
+      return;
+    }
+
+    const reloadChats = async () => {
+      try {
+        const session = await getAuthSession();
+        const userId = session?.id || 'mock-user-id';
+
+        const response = await api.get(`/status/${userId}/PENDING`);
+        const allPets = Array.isArray(response?.data) ? response.data : [];
+        setPets(allPets);
+
+        if (routeToastMessage) {
+          setToast({
+            visible: true,
+            type: routeToastType,
+            message: routeToastMessage,
+          });
+        }
+      } catch (error) {
+        console.error('Erro ao recarregar chats:', error?.response?.data || error?.message);
+      } finally {
+        navigation.setParams({
+          shouldRefresh: false,
+          toastMessage: undefined,
+          toastType: undefined,
+        });
+      }
+    };
+
+    reloadChats();
+  }, [shouldRefresh, navigation, routeToastMessage, routeToastType]);
+
+  useEffect(() => {
+    if (!toast.visible) {
+      return undefined;
+    }
+
+    const timeoutId = setTimeout(() => {
+      setToast((prev) => ({ ...prev, visible: false }));
+    }, 2400);
+
+    return () => clearTimeout(timeoutId);
+  }, [toast.visible]);
 
   useEffect(() => {
     let unsubscribe = () => {};
@@ -138,6 +194,25 @@ const ChatScreen = ({ navigation }) => {
       unsubscribe();
     };
   }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      const reloadPets = async () => {
+        try {
+          const session = await getAuthSession();
+          const userId = session?.id || 'mock-user-id';
+
+          const response = await api.get(`/status/${userId}/PENDING`);
+          const allPets = Array.isArray(response?.data) ? response.data : [];
+          setPets(allPets);
+        } catch (error) {
+          console.error('Erro ao recarregar pets:', error?.response?.data || error?.message);
+        }
+      };
+
+      reloadPets();
+    }, []),
+  );
 
   const chatList = useMemo(
     () => {
@@ -270,6 +345,7 @@ const ChatScreen = ({ navigation }) => {
       chatId: chat.chatId || chat.id,
       userName: chat.name,
       participantId: chat.participantId || null,
+      petId: chat.petId || null,
       currentUserId,
       currentUserName,
     });
@@ -291,12 +367,12 @@ const ChatScreen = ({ navigation }) => {
       <CustomHeader onBack={() => navigation.goBack()} title={title} />
       <View style={styles.headerRow}>
         <Text style={styles.text}>Conversas</Text>
-        <Pressable
+        {/* <Pressable
           style={({ pressed }) => [styles.groupButton, pressed && styles.groupButtonPressed]}
           onPress={openGroupModal}
         >
           <Text style={styles.groupButtonText}>Novo grupo</Text>
-        </Pressable>
+        </Pressable> */}
       </View>
 
       {!hasRequiredFirebaseConfig && (
@@ -413,6 +489,12 @@ const ChatScreen = ({ navigation }) => {
           </View>
         </View>
       </Modal>
+
+      <Toast
+        visible={toast.visible}
+        type={toast.type}
+        message={toast.message}
+      />
     </View>
   );
 };

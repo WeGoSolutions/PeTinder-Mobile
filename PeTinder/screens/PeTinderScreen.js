@@ -1,5 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, PanResponder, Text, Animated, Easing } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  PanResponder,
+  Text,
+  Animated,
+  Easing,
+  Modal,
+  Pressable,
+  ActivityIndicator,
+} from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { NavBar } from '../components/PeTinder/NavBar';
@@ -8,6 +18,8 @@ import PetInfoOverlay from '../components/PeTinder/PetInfoOverlay';
 import PetActionButtons from '../components/PeTinder/PetActionButtons';
 import PetExpandedOverlay from '../components/PeTinder/PetExpandedOverlay';
 import NewUserOnboardingGate from '../components/PeTinder/NewUserOnboardingGate';
+import { CustomHeader } from '../components/CustomHeader';
+import Toast from '../components/Toast';
 import api from '../api';
 import { getAuthUserId } from '../storage/authSession';
 
@@ -159,6 +171,16 @@ const PeTinderScreen = ({ navigation, route }) => {
   const [swipeOffsetX, setSwipeOffsetX] = useState(0);
   const [isFocusedLikedPet, setIsFocusedLikedPet] = useState(false);
   const focusPetId = String(route?.params?.focusPetId || '');
+  const isReadOnlyPreview = Boolean(route?.params?.readOnlyPreview);
+  const previewTitle = String(route?.params?.previewTitle || '');
+  const [isPreviewMenuVisible, setIsPreviewMenuVisible] = useState(false);
+  const [isRemovingInterest, setIsRemovingInterest] = useState(false);
+  const [isConfirmingRemoveInterest, setIsConfirmingRemoveInterest] = useState(false);
+  const [toast, setToast] = useState({
+    visible: false,
+    type: 'error',
+    message: '',
+  });
   const hasOpenedBySwipe = useRef(false);
   const isImageFocusedRef = useRef(isImageFocused);
   const isDetailsExpandedRef = useRef(isDetailsExpanded);
@@ -355,6 +377,10 @@ const PeTinderScreen = ({ navigation, route }) => {
   };
 
   const handleToggleLike = async () => {
+    if (isReadOnlyPreview) {
+      return;
+    }
+
     const selectedPet = pets[currentPetIndex];
 
     if (!selectedPet?.id) {
@@ -415,6 +441,10 @@ const PeTinderScreen = ({ navigation, route }) => {
   };
 
   const handleGreenAction = async () => {
+    if (isReadOnlyPreview) {
+      return;
+    }
+
     const selectedPet = pets[currentPetIndex];
 
     if (!selectedPet?.id) {
@@ -436,6 +466,10 @@ const PeTinderScreen = ({ navigation, route }) => {
   };
 
   const handleRedAction = () => {
+    if (isReadOnlyPreview) {
+      return;
+    }
+
     if (isFocusedLikedPet) {
       restoreDefaultPetList();
       return;
@@ -448,9 +482,108 @@ const PeTinderScreen = ({ navigation, route }) => {
     ? handleGreenAction
     : handleToggleLike;
 
+  useEffect(() => {
+    if (!toast.visible) {
+      return undefined;
+    }
+
+    const timeoutId = setTimeout(() => {
+      setToast((prev) => ({ ...prev, visible: false }));
+    }, 2400);
+
+    return () => clearTimeout(timeoutId);
+  }, [toast.visible]);
+
+  const handleOpenPreviewMenu = () => {
+    if (isRemovingInterest) {
+      return;
+    }
+
+    setIsPreviewMenuVisible(true);
+  };
+
+  const handleClosePreviewMenu = () => {
+    if (isRemovingInterest) {
+      return;
+    }
+
+    setIsPreviewMenuVisible(false);
+  };
+
+  const handleRemoveInterest = () => {
+    const selectedPetId = String(currentPet?.id || focusPetId || '');
+
+    if (!selectedPetId) {
+      return;
+    }
+
+    setIsConfirmingRemoveInterest(true);
+    setIsPreviewMenuVisible(false);
+  };
+
+  const confirmRemoveInterest = async () => {
+    const selectedPetId = String(currentPet?.id || focusPetId || '');
+
+    if (!selectedPetId || isRemovingInterest) {
+      return;
+    }
+
+    try {
+      setIsRemovingInterest(true);
+      const userId = await getAuthUserId();
+
+      if (!userId) {
+        throw new Error('Usuário sem sessão.');
+      }
+
+      await api.delete(`/status/${selectedPetId}/${userId}`);
+      setIsConfirmingRemoveInterest(false);
+
+      const successParams = {
+        title: 'Chat',
+        toastType: 'success',
+        toastMessage: 'Interesse removido com sucesso!',
+      };
+
+      if (typeof navigation.popTo === 'function') {
+        navigation.popTo('Chat', successParams);
+      } else {
+        navigation.navigate('Chat', successParams);
+      }
+    } catch (error) {
+      console.error('Erro ao remover interesse:', error?.response?.data || error?.message);
+      setToast({
+        visible: true,
+        type: 'error',
+        message: 'Erro ao remover interesse!',
+      });
+      setIsConfirmingRemoveInterest(false);
+    } finally {
+      setIsRemovingInterest(false);
+    }
+  };
+
+  const cancelRemoveInterest = () => {
+    if (isRemovingInterest) {
+      return;
+    }
+
+    setIsConfirmingRemoveInterest(false);
+  };
+
   return (
     <View style={styles.root}>
-      <NavBar navigation={navigation} />
+      {isReadOnlyPreview ? (
+        <CustomHeader
+          onBack={() => navigation.goBack()}
+          title={previewTitle || currentPet?.name || 'Pet'}
+          onRightPress={handleOpenPreviewMenu}
+          rightIconName="more-vert"
+          isRightLoading={isRemovingInterest}
+        />
+      ) : (
+        <NavBar navigation={navigation} />
+      )}
 
       <View style={styles.content} {...(hasPets ? screenPanResponder.panHandlers : {})}>
         {isLoadingPets ? (
@@ -490,9 +623,10 @@ const PeTinderScreen = ({ navigation, route }) => {
             <PetImageCarousel
               images={currentPet?.images || []}
               onFocusChange={handleFocusChange}
-              onSwipeRight={handleRedAction}
-              onSwipeLeft={handleGreenAction}
-              onSwipeProgress={setSwipeOffsetX}
+              onSwipeRight={isReadOnlyPreview ? undefined : handleRedAction}
+              onSwipeLeft={isReadOnlyPreview ? undefined : handleGreenAction}
+              onSwipeProgress={isReadOnlyPreview ? undefined : setSwipeOffsetX}
+              swipeEnabled={!isReadOnlyPreview}
             >
               {!isImageFocused && (
                 <PetInfoOverlay
@@ -500,7 +634,7 @@ const PeTinderScreen = ({ navigation, route }) => {
                   onToggleDetails={handleToggleDetails}
                   liked={Boolean(currentPet?.liked)}
                   likesCount={Number(currentPet?.likes) || 0}
-                  onToggleLike={handleOverlayLikeAction}
+                  onToggleLike={isReadOnlyPreview ? undefined : handleOverlayLikeAction}
                 />
               )}
             </PetImageCarousel>
@@ -510,11 +644,11 @@ const PeTinderScreen = ({ navigation, route }) => {
               pet={currentPet}
               liked={Boolean(currentPet?.liked)}
               likesCount={Number(currentPet?.likes) || 0}
-              onToggleLike={handleOverlayLikeAction}
+              onToggleLike={isReadOnlyPreview ? undefined : handleOverlayLikeAction}
               onClose={handleCloseDetails}
             />
 
-            {!isImageFocused && (
+            {!isImageFocused && !isReadOnlyPreview && (
               <PetActionButtons
                 onGreenPress={handleGreenAction}
                 onRedPress={handleRedAction}
@@ -532,6 +666,74 @@ const PeTinderScreen = ({ navigation, route }) => {
       </View>
 
       <NewUserOnboardingGate navigation={navigation} route={route} />
+
+      <Modal
+        transparent
+        visible={isPreviewMenuVisible}
+        animationType="fade"
+        onRequestClose={handleClosePreviewMenu}
+      >
+        <Pressable style={styles.previewMenuBackdrop} onPress={handleClosePreviewMenu}>
+          <Pressable style={styles.previewMenuContent} onPress={() => {}}>
+            <Pressable
+              style={styles.previewMenuItem}
+              onPress={handleRemoveInterest}
+              disabled={isRemovingInterest}
+            >
+              {isRemovingInterest ? (
+                <View style={styles.previewMenuLoadingRow}>
+                  <ActivityIndicator size="small" color="#FF6B6B" />
+                  <Text style={styles.previewMenuItemText}>Removendo...</Text>
+                </View>
+              ) : (
+                <Text style={styles.previewMenuItemText}>Não tenho interesse</Text>
+              )}
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        transparent
+        visible={isConfirmingRemoveInterest}
+        animationType="fade"
+        onRequestClose={cancelRemoveInterest}
+      >
+        <Pressable style={styles.confirmationModalBackdrop} onPress={cancelRemoveInterest}>
+          <Pressable style={styles.confirmationModalContent} onPress={() => {}}>
+            <Text style={styles.confirmationModalTitle}>Remover interesse?</Text>
+            <Text style={styles.confirmationModalMessage}>
+              Essa ação irá remover o interesse. Tem certeza?
+            </Text>
+            <View style={styles.confirmationModalButtons}>
+              <Pressable
+                style={[styles.confirmationButton, styles.confirmationCancelButton]}
+                onPress={cancelRemoveInterest}
+                disabled={isRemovingInterest}
+              >
+                <Text style={styles.confirmationCancelText}>Cancelar</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.confirmationButton, styles.confirmationConfirmButton]}
+                onPress={confirmRemoveInterest}
+                disabled={isRemovingInterest}
+              >
+                {isRemovingInterest ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.confirmationConfirmText}>Confirmar</Text>
+                )}
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Toast
+        visible={toast.visible}
+        type={toast.type}
+        message={toast.message}
+      />
     </View>
   );
 };
@@ -543,6 +745,92 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  previewMenuBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.28)',
+    alignItems: 'flex-end',
+    paddingTop: 92,
+    paddingRight: 14,
+  },
+  previewMenuContent: {
+    minWidth: 190,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: '#EAEAEA',
+  },
+  previewMenuItem: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  previewMenuItemText: {
+    color: '#FF4D4F',
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 14,
+  },
+  previewMenuLoadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  confirmationModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  confirmationModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 20,
+    marginHorizontal: 20,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  confirmationModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1A1A1A',
+    marginBottom: 8,
+  },
+  confirmationModalMessage: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  confirmationModalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  confirmationButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmationCancelButton: {
+    backgroundColor: '#F0F0F0',
+  },
+  confirmationCancelText: {
+    color: '#666',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  confirmationConfirmButton: {
+    backgroundColor: '#FF6B6B',
+  },
+  confirmationConfirmText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 14,
   },
   emptyState: {
     flex: 1,

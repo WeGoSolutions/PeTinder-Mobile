@@ -13,6 +13,7 @@ import {
   Image,
   Alert,
   Modal,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
@@ -22,6 +23,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as MediaLibrary from "expo-media-library";
 import { useRoute } from "@react-navigation/native";
 import { CustomHeader } from "../components/CustomHeader";
+import Toast from "../components/Toast";
 import { getAuthSession } from "../storage/authSession";
 import api from "../api";
 import {
@@ -31,6 +33,7 @@ import {
   setTypingStatus,
   subscribeToChat,
   subscribeToMessages,
+  deleteChat,
 } from "../services/chatFirebase";
 import { hasRequiredFirebaseConfig } from "../services/firebase";
 
@@ -209,6 +212,7 @@ const ChatConversationScreen = ({ navigation }) => {
   const userName = route.params?.userName || "Usuário";
   const chatId = route.params?.chatId || "";
   const participantId = route.params?.participantId || null;
+  const petId = String(route.params?.petId || "");
   const isAiChat = Boolean(route.params?.isAiChat);
   const aiConversationIdRef = useRef(
     String(route.params?.aiConversationId || "") || generateConversationId(),
@@ -249,6 +253,14 @@ const ChatConversationScreen = ({ navigation }) => {
   const dotsAnim = useRef(new Animated.Value(0)).current;
   const insets = useSafeAreaInsets();
   const [androidKeyboardOffset, setAndroidKeyboardOffset] = useState(0);
+  const [isConversationMenuVisible, setIsConversationMenuVisible] = useState(false);
+  const [isRemovingInterestFromChat, setIsRemovingInterestFromChat] = useState(false);
+  const [toast, setToast] = useState({
+    visible: false,
+    type: 'success',
+    message: '',
+  });
+  const [isConfirmingRemoveInterest, setIsConfirmingRemoveInterest] = useState(false);
 
   const resolvedChatId = useMemo(
     () => chatId || buildDirectChatId(currentUserId, participantId),
@@ -1123,6 +1135,102 @@ const ChatConversationScreen = ({ navigation }) => {
     outputRange: [0.25, 0.25, 1, 0.25],
   });
 
+  const handlePressConversationTitle = () => {
+    if (!petId || isAiChat) {
+      return;
+    }
+
+    navigation.push("PeTinder", {
+      focusPetId: petId,
+      readOnlyPreview: true,
+      previewTitle: userName,
+    });
+  };
+
+  useEffect(() => {
+    if (!toast.visible) {
+      return undefined;
+    }
+
+    const timeoutId = setTimeout(() => {
+      setToast((prev) => ({ ...prev, visible: false }));
+    }, 2400);
+
+    return () => clearTimeout(timeoutId);
+  }, [toast.visible]);
+
+  const handleOpenConversationMenu = () => {
+    if (isRemovingInterestFromChat) {
+      return;
+    }
+
+    setIsConversationMenuVisible(true);
+  };
+
+  const handleCloseConversationMenu = () => {
+    if (isRemovingInterestFromChat) {
+      return;
+    }
+
+    setIsConversationMenuVisible(false);
+  };
+
+  const handleRemoveInterestFromChat = () => {
+    if (!petId || isRemovingInterestFromChat) {
+      return;
+    }
+
+    setIsConversationMenuVisible(false);
+    setIsConfirmingRemoveInterest(true);
+  };
+
+  const confirmRemoveInterest = async () => {
+    if (!petId || isRemovingInterestFromChat) {
+      return;
+    }
+
+    try {
+      setIsRemovingInterestFromChat(true);
+      const userId = await getAuthSession();
+
+      if (!userId?.id) {
+        throw new Error('Usuário sem sessão.');
+      }
+
+      await api.delete(`/status/${petId}/${userId.id}`);
+      
+      try {
+        await deleteChat(resolvedChatId);
+      } catch (error) {
+        console.error('Erro ao deletar chat do Firebase:', error?.message);
+      }
+
+      setIsConfirmingRemoveInterest(false);
+
+      const parentNav = navigation.getParent();
+      parentNav?.setParams({
+        shouldRefresh: true,
+        toastMessage: 'Interesse removido com sucesso!',
+        toastType: 'success',
+      });
+
+      navigation.goBack();
+    } catch (error) {
+      console.error('Erro ao remover interesse:', error?.response?.data || error?.message);
+      setToast({
+        visible: true,
+        type: 'error',
+        message: 'Erro ao remover interesse!',
+      });
+    } finally {
+      setIsRemovingInterestFromChat(false);
+    }
+  };
+
+  const cancelRemoveInterest = () => {
+    setIsConfirmingRemoveInterest(false);
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.root}
@@ -1131,7 +1239,14 @@ const ChatConversationScreen = ({ navigation }) => {
       enabled={Platform.OS === "ios"}
     >
       <View style={styles.root}>
-        <CustomHeader onBack={() => navigation.goBack()} title={userName} />
+        <CustomHeader
+          onBack={() => navigation.goBack()}
+          title={userName}
+          onTitlePress={petId && !isAiChat ? handlePressConversationTitle : undefined}
+          onRightPress={petId && !isAiChat ? handleOpenConversationMenu : undefined}
+          rightIconName="more-vert"
+          isRightLoading={isRemovingInterestFromChat}
+        />
 
         {!isAiChat && !hasRequiredFirebaseConfig && (
           <Text style={styles.hintText}>
@@ -1408,6 +1523,74 @@ const ChatConversationScreen = ({ navigation }) => {
             </Pressable>
           </View>
         </Modal>
+
+        <Modal
+          transparent
+          visible={isConversationMenuVisible}
+          animationType="fade"
+          onRequestClose={handleCloseConversationMenu}
+        >
+          <Pressable style={styles.conversationMenuBackdrop} onPress={handleCloseConversationMenu}>
+            <Pressable style={styles.conversationMenuContent} onPress={() => {}}>
+              <Pressable
+                style={styles.conversationMenuItem}
+                onPress={handleRemoveInterestFromChat}
+                disabled={isRemovingInterestFromChat}
+              >
+                {isRemovingInterestFromChat ? (
+                  <View style={styles.conversationMenuLoadingRow}>
+                    <ActivityIndicator size="small" color="#FF6B6B" />
+                    <Text style={styles.conversationMenuItemText}>Removendo...</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.conversationMenuItemText}>Não tenho interesse</Text>
+                )}
+              </Pressable>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
+        <Modal
+          transparent
+          visible={isConfirmingRemoveInterest}
+          animationType="fade"
+          onRequestClose={cancelRemoveInterest}
+        >
+          <Pressable style={styles.confirmationModalBackdrop} onPress={cancelRemoveInterest}>
+            <View style={styles.confirmationModalContent}>
+              <Text style={styles.confirmationModalTitle}>Remover interesse?</Text>
+              <Text style={styles.confirmationModalMessage}>
+                Essa ação irá remover o interesse e apagar o chat. Tem certeza?
+              </Text>
+              <View style={styles.confirmationModalButtons}>
+                <Pressable
+                  style={[styles.confirmationButton, styles.confirmationCancelButton]}
+                  onPress={cancelRemoveInterest}
+                  disabled={isRemovingInterestFromChat}
+                >
+                  <Text style={styles.confirmationCancelText}>Cancelar</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.confirmationButton, styles.confirmationConfirmButton]}
+                  onPress={confirmRemoveInterest}
+                  disabled={isRemovingInterestFromChat}
+                >
+                  {isRemovingInterestFromChat ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.confirmationConfirmText}>Confirmar</Text>
+                  )}
+                </Pressable>
+              </View>
+            </View>
+          </Pressable>
+        </Modal>
+
+        <Toast
+          visible={toast.visible}
+          type={toast.type}
+          message={toast.message}
+        />
       </View>
     </KeyboardAvoidingView>
   );
@@ -1730,6 +1913,91 @@ const styles = StyleSheet.create({
   },
   focusCloseButton: {
     right: 18,
+  },
+  conversationMenuBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.28)",
+    alignItems: "flex-end",
+    paddingTop: 92,
+    paddingRight: 14,
+  },
+  conversationMenuContent: {
+    minWidth: 190,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: "#EAEAEA",
+  },
+  conversationMenuItem: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  conversationMenuItemText: {
+    color: "#FF4D4F",
+    fontFamily: "Poppins_500Medium",
+    fontSize: 14,
+  },
+  conversationMenuLoadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  confirmationModalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  confirmationModalContent: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    marginHorizontal: 24,
+    alignItems: "center",
+  },
+  confirmationModalTitle: {
+    color: "#1A1A1A",
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 18,
+    marginBottom: 8,
+  },
+  confirmationModalMessage: {
+    color: "#666666",
+    fontFamily: "Poppins_400Regular",
+    fontSize: 14,
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  confirmationModalButtons: {
+    flexDirection: "row",
+    gap: 12,
+    width: "100%",
+  },
+  confirmationButton: {
+    flex: 1,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  confirmationCancelButton: {
+    backgroundColor: "#F0F0F0",
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+  },
+  confirmationCancelText: {
+    color: "#1A1A1A",
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 14,
+  },
+  confirmationConfirmButton: {
+    backgroundColor: "#FF4D4F",
+  },
+  confirmationConfirmText: {
+    color: "#FFFFFF",
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 14,
   },
 });
 

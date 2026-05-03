@@ -199,7 +199,7 @@ const PetExpandedOverlay = ({
           <View style={styles.actionsRight}>
             <View style={styles.likesBubble}>
               <Pressable
-                onPress={onToggleLike}
+                onPress={() => onToggleLike?.()}
                 hitSlop={8}
                 style={styles.likePressable}
               >
