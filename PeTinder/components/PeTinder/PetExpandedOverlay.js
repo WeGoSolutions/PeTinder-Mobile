@@ -11,6 +11,10 @@ import {
   Dimensions,
 } from "react-native";
 
+import { MaterialIcons } from '@expo/vector-icons';
+
+import GeolocalizationScreen from "../../components/GeolocalizationScreen";
+
 const PetDescriptionSection = ({ description }) => {
   return (
     <View style={styles.sectionContainer}>
@@ -36,6 +40,10 @@ const PetHealthSection = ({ features }) => {
           <Text style={styles.healthText}>{feature}</Text>
         </View>
       ))}
+      <View style={styles.distanciaContainer}>
+        <MaterialIcons name="location-on" size={20} color="#FFFFFF" />
+        <GeolocalizationScreen />
+      </View>
     </View>
   );
 };
@@ -416,6 +424,11 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 18,
     fontFamily: "Poppins_500Medium",
+  },
+  distanciaContainer: {
+    marginTop: 35,
+    flexDirection: 'row',
+    gap: 4,
   },
 });
 
