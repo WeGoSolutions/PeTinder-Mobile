@@ -210,6 +210,7 @@ const buildAiErrorMessage = (error) => {
 const ChatConversationScreen = ({ navigation }) => {
   const route = useRoute();
   const userName = route.params?.userName || "Usuário";
+  const petName = String(route.params?.petName || "").trim();
   const chatId = route.params?.chatId || "";
   const participantId = route.params?.participantId || null;
   const petId = String(route.params?.petId || "");
@@ -263,9 +264,11 @@ const ChatConversationScreen = ({ navigation }) => {
   const [isConfirmingRemoveInterest, setIsConfirmingRemoveInterest] = useState(false);
 
   const resolvedChatId = useMemo(
-    () => chatId || buildDirectChatId(currentUserId, participantId),
-    [chatId, currentUserId, participantId],
+    () => chatId || buildDirectChatId(currentUserId, participantId, petId),
+    [chatId, currentUserId, participantId, petId],
   );
+
+  const conversationTitle = petName && !isAiChat ? `${userName} • ${petName}` : userName;
 
   useEffect(() => {
     const loadSession = async () => {
@@ -501,6 +504,30 @@ const ChatConversationScreen = ({ navigation }) => {
     () => [...normalizedMessages].reverse(),
     [normalizedMessages],
   );
+
+  const renderFormattedText = (text) => {
+    if (!text && text !== "") return null;
+
+    const parts = String(text).split(/(\*\*[^*]+\*\*)/g);
+
+    return (
+      <Text style={styles.messageText}>
+        {parts.map((part, idx) => {
+          const m = part.match(/^\*\*(.+)\*\*$/s);
+
+          if (m) {
+            return (
+              <Text key={idx} style={styles.messageTextBold}>
+                {m[1]}
+              </Text>
+            );
+          }
+
+          return <Text key={idx}>{part}</Text>;
+        })}
+      </Text>
+    );
+  };
 
   const participantLastReadMillis = timestampToMillis(
     chatMeta?.lastReadAtByUser?.[participantId],
@@ -1241,7 +1268,7 @@ const ChatConversationScreen = ({ navigation }) => {
       <View style={styles.root}>
         <CustomHeader
           onBack={() => navigation.goBack()}
-          title={userName}
+          title={conversationTitle}
           onTitlePress={petId && !isAiChat ? handlePressConversationTitle : undefined}
           onRightPress={petId && !isAiChat ? handleOpenConversationMenu : undefined}
           rightIconName="more-vert"
@@ -1303,7 +1330,7 @@ const ChatConversationScreen = ({ navigation }) => {
                   </Text>
                 </Pressable>
               )}
-              {Boolean(item?.text) && <Text style={styles.messageText}>{item.text}</Text>}
+              {Boolean(item?.text) && renderFormattedText(item.text)}
               <View style={styles.messageMetaRow}>
                 <Text style={styles.messageTime}>
                   {formatTime(item.createdAt)}
@@ -1646,6 +1673,11 @@ const styles = StyleSheet.create({
   messageText: {
     color: "#FFFFFF",
     fontFamily: "Poppins_400Regular",
+    fontSize: 14,
+  },
+  messageTextBold: {
+    color: "#FFFFFF",
+    fontFamily: "Poppins_600SemiBold",
     fontSize: 14,
   },
   senderNameText: {

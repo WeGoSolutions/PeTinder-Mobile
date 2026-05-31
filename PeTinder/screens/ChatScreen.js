@@ -218,14 +218,16 @@ const ChatScreen = ({ navigation }) => {
     () => {
       const petChats = pets
         .map((pet) => {
-          const chatId = buildDirectChatId(currentUserId, pet.ongId);
-          const firebaseChat = firebaseChatsById[chatId];
+          const chatId = buildDirectChatId(currentUserId, pet.ongId, pet.petId);
+          const legacyChatId = buildDirectChatId(currentUserId, pet.ongId);
+          const firebaseChat = firebaseChatsById[chatId] || firebaseChatsById[legacyChatId];
 
           return {
             id: chatId || pet.petId,
             chatId,
             participantId: pet.ongId,
             petId: pet.petId,
+            petName: pet.petNome || null,
             name: pet.petNome || 'Pet',
             lastMessage: firebaseChat?.lastMessage || 'Toque para iniciar conversa',
             isLastMessageMine: String(firebaseChat?.lastMessageSenderId || '') === String(currentUserId || ''),
@@ -344,6 +346,7 @@ const ChatScreen = ({ navigation }) => {
     navigation.navigate('ChatConversation', {
       chatId: chat.chatId || chat.id,
       userName: chat.name,
+      petName: chat.petName || null,
       participantId: chat.participantId || null,
       petId: chat.petId || null,
       currentUserId,

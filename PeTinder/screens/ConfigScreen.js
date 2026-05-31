@@ -9,7 +9,7 @@ import { ContaTab } from "../components/config/ContaTab";
 import Modal from "../components/Modal";
 import Toast from "../components/Toast";
 import api from "../api";
-import { getAuthUserId } from "../storage/authSession";
+import { getAuthUserId, clearAuthSession } from "../storage/authSession";
 import { EditProfileTab } from "../components/config/EditProfileTab";
 
 const formatCPF = (value) => {
@@ -137,9 +137,16 @@ const ConfigScreen = ({ navigation }) => {
 
   const [activeTab, setActiveTab] = useState(tabs[0]);
 
-  const handleExitConfirm = () => {
-    setShowExitModal(false);
-    navigation.navigate("Home");
+  const handleExitConfirm = async () => {
+    try {
+      setShowExitModal(false);
+      await clearAuthSession();
+      navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+    } catch (error) {
+      console.error('Erro ao limpar sessão:', error);
+      setShowExitModal(false);
+      navigation.navigate('Home');
+    }
   };
 
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);

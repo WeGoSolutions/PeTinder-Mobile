@@ -185,15 +185,22 @@ export const createGroupChat = async ({
   };
 };
 
-export const buildDirectChatId = (userAId, userBId) => {
+export const buildDirectChatId = (userAId, userBId, scopeId = '') => {
   const a = String(userAId || '').trim();
   const b = String(userBId || '').trim();
+  const normalizedScopeId = String(scopeId || '').trim();
 
   if (!a || !b) {
     return '';
   }
 
-  return [a, b].sort().join('_');
+  const baseChatId = [a, b].sort().join('_');
+
+  if (!normalizedScopeId) {
+    return baseChatId;
+  }
+
+  return `${baseChatId}__${normalizedScopeId}`;
 };
 
 const toMillis = (timestamp) => {

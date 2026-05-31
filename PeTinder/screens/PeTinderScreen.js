@@ -147,7 +147,7 @@ const mapPetFromApi = (pet) => ({
   name: pet?.nome || 'Pet',
   sex: pet?.sexo === 'FEMEA' ? 'F' : 'M',
   age: formatPetAge(pet?.idade),
-  likes: Number(pet?.curtidas) || 0,
+  likes: Number(pet?.likes ?? pet?.curtidas) || 0,
   liked: false,
   images: mapImages(pet?.imagens || pet?.imagensUrls),
   description: pet?.descricao || '',
@@ -410,34 +410,32 @@ const PeTinderScreen = ({ navigation, route }) => {
 
       setPets((prevPets) => {
         const nextPets = [...prevPets];
-        const pet = nextPets[currentPetIndex];
-
-        if (!pet) {
-          return prevPets;
-        }
-
-        nextPets[currentPetIndex] = {
-          ...pet,
-          liked: !pet.liked,
-        };
-
+        nextPets.splice(currentPetIndex, 1);
         return nextPets;
       });
 
-      goToNextPet();
+      goToNextPetAfterRemoval();
     } catch (error) {
       console.error('Erro ao curtir pet:', error?.response?.data || error?.message);
     }
   };
 
   const goToNextPet = () => {
-    if (!pets.length) {
-      return;
-    }
-
     setSwipeOffsetX(0);
     setIsDetailsExpanded(false);
-    setCurrentPetIndex((prevIndex) => (prevIndex + 1) % pets.length);
+
+    if (pets.length > 0) {
+      setCurrentPetIndex((prevIndex) => (prevIndex + 1) % pets.length);
+    }
+  };
+
+  const goToNextPetAfterRemoval = () => {
+    // Após remover um pet com splice, valida o índice
+    if (currentPetIndex >= pets.length && pets.length > 0) {
+      setCurrentPetIndex(pets.length - 1);
+    } else if (pets.length === 0) {
+      setCurrentPetIndex(0);
+    }
   };
 
   const handleGreenAction = async () => {
@@ -459,6 +457,20 @@ const PeTinderScreen = ({ navigation, route }) => {
       }
 
       await api.post(`/status/pending/${selectedPet.id}/${userId}`);
+
+      setPets((prevPets) => {
+        const nextPets = [...prevPets];
+        nextPets.splice(currentPetIndex, 1);
+        return nextPets;
+      });
+
+      setSwipeOffsetX(0);
+      setIsDetailsExpanded(false);
+      if (currentPetIndex >= pets.length - 1 && pets.length > 1) {
+        setCurrentPetIndex(pets.length - 2);
+      } else if (pets.length <= 1) {
+        setCurrentPetIndex(0);
+      }
       navigation.navigate('Chat', { title: 'Chat' });
     } catch (error) {
       console.error('Erro ao criar pendencia de chat:', error?.response?.data || error?.message);
