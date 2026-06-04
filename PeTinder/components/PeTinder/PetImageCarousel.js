@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 const FOCUS_PRESS_DELAY_MS = 220;
 const SWIPE_TRIGGER_DISTANCE = 45;
 const SWIPE_TRIGGER_VELOCITY = 0.45;
+const DOUBLE_TAP_WINDOW_MS = 250;
 
 const getImageCacheKey = (source) => {
   if (typeof source === 'number') {
@@ -25,6 +26,7 @@ const PetImageCarousel = ({
   onSwipeRight,
   onSwipeLeft,
   onSwipeProgress,
+  onDoubleTap,
   swipeEnabled = true,
 }) => {
   const gallery = useMemo(() => (images.length ? images : []), [images]);
@@ -34,6 +36,9 @@ const PetImageCarousel = ({
   const hasTriggeredLongPress = useRef(false);
   const isSwipeAnimatingRef = useRef(false);
   const loadedImageKeysRef = useRef(new Set());
+  // Detecção de duplo-toque (curtir) vs toque simples (navegar fotos).
+  const lastTapTimeRef = useRef(0);
+  const pendingNavTimerRef = useRef(null);
   const shimmerTranslateX = useRef(new Animated.Value(-220)).current;
   const imageOpacity = useRef(new Animated.Value(0)).current;
   const swipeTranslateX = useRef(new Animated.Value(0)).current;
@@ -231,18 +236,55 @@ const PetImageCarousel = ({
     }
   };
 
+  const clearPendingNav = () => {
+    if (pendingNavTimerRef.current) {
+      clearTimeout(pendingNavTimerRef.current);
+      pendingNavTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => () => clearPendingNav(), []);
+
   const handleNavigate = (direction) => {
     if (hasTriggeredLongPress.current || isSwipeAnimatingRef.current) {
       hasTriggeredLongPress.current = false;
       return;
     }
 
-    if (direction === 'left') {
-      goToPrevious();
+    const now = Date.now();
+    const isDoubleTap = now - lastTapTimeRef.current < DOUBLE_TAP_WINDOW_MS;
+
+    // Duplo-toque (em qualquer lado) = curtir. Cancela a navegação pendente do
+    // primeiro toque para NÃO pular fotos.
+    if (isDoubleTap && onDoubleTap) {
+      lastTapTimeRef.current = 0;
+      clearPendingNav();
+      onDoubleTap();
       return;
     }
 
-    goToNext();
+    lastTapTimeRef.current = now;
+
+    // Se houver onDoubleTap, adiamos a navegação para poder detectar o 2º toque.
+    // Sem onDoubleTap (ex.: preview), navega na hora (sem latência).
+    if (!onDoubleTap) {
+      if (direction === 'left') {
+        goToPrevious();
+      } else {
+        goToNext();
+      }
+      return;
+    }
+
+    clearPendingNav();
+    pendingNavTimerRef.current = setTimeout(() => {
+      pendingNavTimerRef.current = null;
+      if (direction === 'left') {
+        goToPrevious();
+      } else {
+        goToNext();
+      }
+    }, DOUBLE_TAP_WINDOW_MS);
   };
 
   return (
@@ -256,10 +298,19 @@ const PetImageCarousel = ({
         ]}
       >
         {gallery.length > 0 ? (
+          <>
+          {/* Fundo: mesma imagem em "cover" borrada, para preencher o card sem
+              cortar a foto real (que aparece inteira em "contain" por cima). */}
+          <Image
+            source={gallery[currentIndex]}
+            style={styles.imageBackdrop}
+            resizeMode="cover"
+            blurRadius={18}
+          />
           <Animated.Image
             source={gallery[currentIndex]}
             style={[styles.image, { opacity: imageOpacity }]}
-            resizeMode="cover"
+            resizeMode="contain"
             onLoadStart={() => {
               const currentImage = gallery[currentIndex];
               const currentImageKey = getImageCacheKey(currentImage);
@@ -286,6 +337,7 @@ const PetImageCarousel = ({
               imageOpacity.setValue(1);
             }}
           />
+          </>
         ) : (
           <View style={styles.emptyState} />
         )}
@@ -364,6 +416,10 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     position: 'absolute',
+  },
+  imageBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#000000',
   },
   emptyState: {
     ...StyleSheet.absoluteFillObject,

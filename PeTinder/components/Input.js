@@ -39,6 +39,10 @@ const Input = forwardRef(({
   keyboardType,
   autoCapitalize,
   error,
+  errorText,
+  helperText,
+  helperContent,
+  valid,
   variant,
   dateValue,
   onDateChange,
@@ -48,6 +52,7 @@ const Input = forwardRef(({
   forceActiveStyle,
   returnKeyType,
   onSubmitEditing,
+  onBlur,
   blurOnSubmit,
   autoCorrect,
   autoComplete,
@@ -55,6 +60,9 @@ const Input = forwardRef(({
 }, ref) => {
   const [isFocused, setIsFocused] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
+  const isPassword = !!secureTextEntry;
+  const [isPasswordRevealed, setIsPasswordRevealed] = useState(false);
+  const innerRef = useRef(null);
   const isDate = variant === 'date';
   const isReadOnly = readOnly || disabled;
   const isDisabled = disabled;
@@ -86,6 +94,31 @@ const Input = forwardRef(({
     }),
   };
 
+  // --- Campo de senha: olho para revelar/ocultar ---
+  // Usamos o secureTextEntry NATIVO (em vez de mascarar manualmente o valor):
+  // mascarar um TextInput controlado conflita com a região de composição do
+  // teclado Android e duplica caracteres (ex.: "Gu" + "i" virava "GuGui"). O
+  // valor real flui direto pelo onChangeText, sem transformação. O olho apenas
+  // liga/desliga o secureTextEntry. No iOS, o secureTextEntry já revela o último
+  // caractere por um instante nativamente.
+
+  // Mescla a ref encaminhada (usada pelo pai para focar o próximo campo) com uma
+  // ref interna, para conseguirmos refocar ao tocar no olho.
+  const setInputRef = (node) => {
+    innerRef.current = node;
+    if (typeof ref === 'function') {
+      ref(node);
+    } else if (ref) {
+      ref.current = node;
+    }
+  };
+
+  const togglePasswordReveal = () => {
+    setIsPasswordRevealed((prev) => !prev);
+    // Mantém o foco/teclado ao tocar no olho.
+    requestAnimationFrame(() => innerRef.current?.focus());
+  };
+
   return (
     <View style={styles.container}>
       <Animated.Text
@@ -107,7 +140,7 @@ const Input = forwardRef(({
               !isReadOnly && pressed && styles.datePressed,
             ]}
           >
-            <View style={[styles.input, styles.dateInput, error && styles.inputError, isDisabled && styles.dateInputDisabled]}>
+            <View style={[styles.input, styles.dateInput, error && styles.inputError, !error && valid && styles.dateInputValid, isDisabled && styles.dateInputDisabled]}>
               <Text
                 style={[
                   styles.dateText,
@@ -165,25 +198,68 @@ const Input = forwardRef(({
           )}
         </>
       ) : (
-        <TextInput
-          ref={ref}
-          style={[styles.input, error && styles.inputError, isDisabled && styles.inputDisabled]}
-          value={value}
-          onChangeText={onChangeText}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
-          secureTextEntry={secureTextEntry}
-          keyboardType={keyboardType}
-          autoCapitalize={autoCapitalize}
-          returnKeyType={returnKeyType}
-          onSubmitEditing={onSubmitEditing}
-          blurOnSubmit={blurOnSubmit}
-          autoCorrect={autoCorrect}
-          autoComplete={autoComplete}
-          textContentType={textContentType}
-          editable={!isReadOnly && !isDisabled}
-        />
+        <View
+          style={[
+            styles.inputRow,
+            error && styles.inputRowError,
+            !error && valid && styles.inputRowValid,
+            isDisabled && styles.inputRowDisabled,
+          ]}
+        >
+          <TextInput
+            ref={setInputRef}
+            style={[styles.inputControl, isDisabled && styles.inputControlDisabled]}
+            value={value}
+            onChangeText={onChangeText}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => {
+              setIsFocused(false);
+              onBlur?.();
+            }}
+            secureTextEntry={isPassword && !isPasswordRevealed}
+            keyboardType={keyboardType}
+            autoCapitalize={isPassword ? 'none' : autoCapitalize}
+            autoCorrect={isPassword ? false : autoCorrect}
+            spellCheck={isPassword ? false : undefined}
+            returnKeyType={returnKeyType}
+            onSubmitEditing={onSubmitEditing}
+            blurOnSubmit={blurOnSubmit}
+            autoComplete={autoComplete}
+            textContentType={textContentType}
+            editable={!isReadOnly && !isDisabled}
+          />
+          {!error && valid ? (
+            <MaterialIcons
+              name="check-circle"
+              size={18}
+              color="#7BD88F"
+              style={styles.validIcon}
+            />
+          ) : null}
+          {isPassword ? (
+            <Pressable
+              onPress={togglePasswordReveal}
+              hitSlop={10}
+              style={styles.eyeButton}
+              accessibilityRole="button"
+              accessibilityLabel={isPasswordRevealed ? 'Ocultar senha' : 'Mostrar senha'}
+            >
+              <MaterialIcons
+                name={isPasswordRevealed ? 'visibility' : 'visibility-off'}
+                size={20}
+                color="#FFC0D9"
+              />
+            </Pressable>
+          ) : null}
+        </View>
       )}
+      {errorText ? (
+        <Text style={styles.errorText}>{errorText}</Text>
+      ) : helperContent ? (
+        helperContent
+      ) : helperText ? (
+        <Text style={styles.helperText}>{helperText}</Text>
+      ) : null}
     </View>
   );
 });
@@ -206,8 +282,55 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_400Regular',
     color: '#FFFFFF',
   },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#FFC0D9',
+  },
+  inputControl: {
+    flex: 1,
+    paddingVertical: 10,
+    fontSize: 16,
+    fontFamily: 'Poppins_400Regular',
+    color: '#FFFFFF',
+  },
+  inputControlDisabled: {
+    color: '#AAAAAA',
+  },
+  inputRowError: {
+    borderBottomColor: '#FF6B6B',
+  },
+  inputRowValid: {
+    borderBottomColor: '#7BD88F',
+  },
+  inputRowDisabled: {
+    borderBottomColor: '#666666',
+  },
+  validIcon: {
+    marginLeft: 8,
+  },
+  eyeButton: {
+    marginLeft: 8,
+    padding: 2,
+  },
   inputError: {
     borderBottomColor: '#FF6B6B',
+  },
+  dateInputValid: {
+    borderBottomColor: '#7BD88F',
+  },
+  errorText: {
+    marginTop: 4,
+    fontSize: 12,
+    fontFamily: 'Poppins_400Regular',
+    color: '#FF6B6B',
+  },
+  helperText: {
+    marginTop: 4,
+    fontSize: 12,
+    fontFamily: 'Poppins_400Regular',
+    color: '#AAAAAA',
   },
   inputDisabled: {
     borderBottomColor: '#666666',

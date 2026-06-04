@@ -633,11 +633,13 @@ const PeTinderScreen = ({ navigation, route }) => {
         ) : hasPets ? (
           <>
             <PetImageCarousel
+              key={String(currentPet?.id ?? currentPetIndex)}
               images={currentPet?.images || []}
               onFocusChange={handleFocusChange}
               onSwipeRight={isReadOnlyPreview ? undefined : handleRedAction}
               onSwipeLeft={isReadOnlyPreview ? undefined : handleGreenAction}
               onSwipeProgress={isReadOnlyPreview ? undefined : setSwipeOffsetX}
+              onDoubleTap={isReadOnlyPreview ? undefined : handleOverlayLikeAction}
               swipeEnabled={!isReadOnlyPreview}
             >
               {!isImageFocused && (

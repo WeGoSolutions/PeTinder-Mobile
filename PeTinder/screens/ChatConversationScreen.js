@@ -253,7 +253,7 @@ const ChatConversationScreen = ({ navigation }) => {
   const isRecordStartInProgressRef = useRef(false);
   const dotsAnim = useRef(new Animated.Value(0)).current;
   const insets = useSafeAreaInsets();
-  const [androidKeyboardOffset, setAndroidKeyboardOffset] = useState(0);
+  const [keyboardOffset, setKeyboardOffset] = useState(0);
   const [isConversationMenuVisible, setIsConversationMenuVisible] = useState(false);
   const [isRemovingInterestFromChat, setIsRemovingInterestFromChat] = useState(false);
   const [toast, setToast] = useState({
@@ -361,24 +361,27 @@ const ChatConversationScreen = ({ navigation }) => {
   }, [dotsAnim, isOtherTyping]);
 
   useEffect(() => {
-    if (Platform.OS !== "android") {
-      return () => { };
-    }
+    // Evita o teclado de forma IDÊNTICA no iOS e Android: medimos a altura real
+    // do teclado e levantamos a barra de input. iOS expõe os eventos "will"
+    // (mais suaves); Android só os "did". Não dependemos do KeyboardAvoidingView
+    // (que divergia entre as plataformas e estava desligado no Android).
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
 
-    const onShow = Keyboard.addListener("keyboardDidShow", (event) => {
+    const onShow = Keyboard.addListener(showEvent, (event) => {
       const keyboardHeight = Number(event?.endCoordinates?.height || 0);
-      setAndroidKeyboardOffset(Math.max(0, keyboardHeight + 2));
+      setKeyboardOffset(Math.max(0, keyboardHeight));
     });
 
-    const onHide = Keyboard.addListener("keyboardDidHide", () => {
-      setAndroidKeyboardOffset(0);
+    const onHide = Keyboard.addListener(hideEvent, () => {
+      setKeyboardOffset(0);
     });
 
     return () => {
       onShow.remove();
       onHide.remove();
     };
-  }, [insets.bottom]);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -1261,9 +1264,8 @@ const ChatConversationScreen = ({ navigation }) => {
   return (
     <KeyboardAvoidingView
       style={styles.root}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={Platform.OS === "ios" ? Math.max(insets.top, 0) : 0}
-      enabled={Platform.OS === "ios"}
+      behavior={undefined}
+      enabled={false}
     >
       <View style={styles.root}>
         <CustomHeader
@@ -1375,9 +1377,12 @@ const ChatConversationScreen = ({ navigation }) => {
         <View
           style={[
             styles.inputRow,
-            Platform.OS === "android" && androidKeyboardOffset > 0
-              ? { marginBottom: androidKeyboardOffset }
-              : null,
+            {
+              // Sobe junto com o teclado (idêntico nos 2 SO) e respeita a barra
+              // de gestos/home indicator quando o teclado está fechado.
+              marginBottom: keyboardOffset,
+              paddingBottom: keyboardOffset > 0 ? 10 : insets.bottom + 14,
+            },
           ]}
         >
           {!isAiChat && (
