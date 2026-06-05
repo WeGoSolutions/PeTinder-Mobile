@@ -50,7 +50,7 @@ const renderPersonalFields = (data) => {
       ) : (
         <>
           <Text style={styles.fieldLabel}>{labelMap[key] || key}</Text>
-          <Text style={styles.fieldValue}>{String(value)}</Text>
+          <Text numberOfLines={1} ellipsizeMode="tail" style={styles.fieldValue}>{String(value)}</Text>
         </>
       )}
       {key !== "dataNasc" && <View style={styles.fieldDivider} />}
@@ -67,38 +67,38 @@ const renderAddressFields = (data) => {
     <View style={styles.addressContainer}>
       <View style={styles.fieldRow}>
         <Text style={styles.fieldLabel}>{labelMap.cep}</Text>
-        <Text style={styles.fieldValue}>{String(data.cep || "")}</Text>
+        <Text numberOfLines={1} ellipsizeMode="tail" style={styles.fieldValue}>{String(data.cep || "")}</Text>
+        <View style={styles.fieldDivider} />
+      </View>
+
+      <View style={styles.fieldRow}>
+        <Text style={styles.fieldLabel}>{labelMap.rua}</Text>
+        <Text numberOfLines={1} ellipsizeMode="tail" style={styles.fieldValue}>{String(data.rua || "")}</Text>
         <View style={styles.fieldDivider} />
       </View>
 
       <View style={styles.addressRow}>
         <View style={styles.addressCol}>
-          <Text style={styles.fieldLabel}>{labelMap.rua}</Text>
-          <Text style={styles.fieldValue}>{String(data.rua || "")}</Text>
+          <Text style={styles.fieldLabel}>{labelMap.numero}</Text>
+          <Text numberOfLines={1} ellipsizeMode="tail" style={styles.fieldValue}>{String(data.numero || "")}</Text>
           <View style={styles.fieldDivider} />
         </View>
         <View style={styles.addressCol}>
-          <Text style={styles.fieldLabel}>{labelMap.numero}</Text>
-          <Text style={styles.fieldValue}>{String(data.numero || "")}</Text>
+          <Text style={styles.fieldLabel}>{labelMap.complemento}</Text>
+          <Text numberOfLines={1} ellipsizeMode="tail" style={styles.fieldValue}>{String(data.complemento || "")}</Text>
           <View style={styles.fieldDivider} />
         </View>
-      </View>
-
-      <View style={styles.fieldRow}>
-        <Text style={styles.fieldLabel}>{labelMap.complemento}</Text>
-        <Text style={styles.fieldValue}>{String(data.complemento || "")}</Text>
-        <View style={styles.fieldDivider} />
       </View>
 
       <View style={styles.addressRow}>
         <View style={styles.addressCol}>
           <Text style={styles.fieldLabel}>{labelMap.cidade}</Text>
-          <Text style={styles.fieldValue}>{String(data.cidade || "")}</Text>
+          <Text numberOfLines={1} ellipsizeMode="tail" style={styles.fieldValue}>{String(data.cidade || "")}</Text>
           <View style={styles.fieldDivider} />
         </View>
         <View style={styles.addressCol}>
           <Text style={styles.fieldLabel}>{labelMap.uf}</Text>
-          <Text style={styles.fieldValue}>{String(data.uf || "")}</Text>
+          <Text numberOfLines={1} ellipsizeMode="tail" style={styles.fieldValue}>{String(data.uf || "")}</Text>
           <View style={styles.fieldDivider} />
         </View>
       </View>
@@ -158,6 +158,7 @@ const styles = StyleSheet.create({
   tabsRow: {
     flexDirection: "row",
     gap: 20,
+    marginVertical: 20
   },
   tabItem: {
     alignItems: "flex-start",
@@ -182,11 +183,9 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
   contentContainer: {
-    marginTop: 5,
     width: "100%",
-    height: "85%",
-    justifyContent: "center",
     gap: 15,
+    justifyContent: "center",
   },
   addressContainer: {
     gap: 12,
