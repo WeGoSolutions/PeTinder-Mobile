@@ -146,6 +146,7 @@ const hydratePetsWithImages = async (petList) => {
 const mapPetFromApi = (pet) => ({
   id: pet?.id,
   name: pet?.nome || 'Pet',
+  ongName: pet?.nomeOng,
   sex: pet?.sexo === 'FEMEA' ? 'F' : 'M',
   age: formatPetAge(pet?.idade),
   likes: Number(pet?.likes ?? pet?.curtidas) || 0,
@@ -528,6 +529,7 @@ const PeTinderScreen = ({ navigation, route }) => {
     goToNextPet();
   };
 
+  //entender
   const handleOverlayLikeAction = isFocusedLikedPet
     ? handleGreenAction
     : handleToggleLike;
@@ -736,7 +738,7 @@ const PeTinderScreen = ({ navigation, route }) => {
         onRequestClose={handleClosePreviewMenu}
       >
         <Pressable style={styles.previewMenuBackdrop} onPress={handleClosePreviewMenu}>
-          <Pressable style={styles.previewMenuContent} onPress={() => {}}>
+          <Pressable style={styles.previewMenuContent} onPress={() => { }}>
             <Pressable
               style={styles.previewMenuItem}
               onPress={handleRemoveInterest}
@@ -762,7 +764,7 @@ const PeTinderScreen = ({ navigation, route }) => {
         onRequestClose={cancelRemoveInterest}
       >
         <Pressable style={styles.confirmationModalBackdrop} onPress={cancelRemoveInterest}>
-          <Pressable style={styles.confirmationModalContent} onPress={() => {}}>
+          <Pressable style={styles.confirmationModalContent} onPress={() => { }}>
             <Text style={styles.confirmationModalTitle}>Remover interesse?</Text>
             <Text style={styles.confirmationModalMessage}>
               Essa ação irá remover o interesse. Tem certeza?
