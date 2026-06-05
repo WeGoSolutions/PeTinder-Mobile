@@ -422,6 +422,37 @@ const PeTinderScreen = ({ navigation, route }) => {
     }
   };
 
+  const handleUnlikeFocusedLikedPet = async () => {
+    if (isReadOnlyPreview) {
+      return;
+    }
+
+    const selectedPet = pets[currentPetIndex];
+
+    if (!selectedPet?.id) {
+      return;
+    }
+
+    try {
+      const userId = await getAuthUserId();
+
+      if (!userId) {
+        return;
+      }
+
+      await api.delete(`/status/${selectedPet.id}/${userId}`);
+
+      setSwipeOffsetX(0);
+      setIsDetailsExpanded(false);
+      setIsFocusedLikedPet(false);
+      setPets(defaultPets.length ? defaultPets : []);
+      setCurrentPetIndex(0);
+      navigation.setParams({ focusPetId: undefined, liked: undefined });
+    } catch (error) {
+      console.error('Erro ao remover like do pet:', error?.response?.data || error?.message);
+    }
+  };
+
   const goToNextPet = () => {
     setSwipeOffsetX(0);
     setIsDetailsExpanded(false);
@@ -492,9 +523,11 @@ const PeTinderScreen = ({ navigation, route }) => {
     goToNextPet();
   };
 
-  const handleOverlayLikeAction = isFocusedLikedPet
-    ? handleGreenAction
-    : handleToggleLike;
+  const handleOverlayLikeAction = routeLiked && isFocusedLikedPet
+    ? handleUnlikeFocusedLikedPet
+    : isFocusedLikedPet
+      ? handleGreenAction
+      : handleToggleLike;
 
   useEffect(() => {
     if (!toast.visible) {
