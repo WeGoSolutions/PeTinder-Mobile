@@ -164,6 +164,7 @@ const mapPetFromApi = (pet) => ({
 });
 
 const PeTinderScreen = ({ navigation, route }) => {
+  const liked = Boolean(route?.params?.liked);
   const [pets, setPets] = useState([]);
   const [defaultPets, setDefaultPets] = useState([]);
   const [isLoadingPets, setIsLoadingPets] = useState(true);
@@ -173,6 +174,7 @@ const PeTinderScreen = ({ navigation, route }) => {
   const [swipeOffsetX, setSwipeOffsetX] = useState(0);
   const [isFocusedLikedPet, setIsFocusedLikedPet] = useState(false);
   const focusPetId = String(route?.params?.focusPetId || '');
+  const routeLiked = Boolean(route?.params?.liked);
   const isReadOnlyPreview = Boolean(route?.params?.readOnlyPreview);
   const previewTitle = String(route?.params?.previewTitle || '');
   const [isPreviewMenuVisible, setIsPreviewMenuVisible] = useState(false);
@@ -686,7 +688,7 @@ const PeTinderScreen = ({ navigation, route }) => {
                 <PetInfoOverlay
                   pet={currentPet}
                   onToggleDetails={handleToggleDetails}
-                  liked={Boolean(currentPet?.liked)}
+                  liked={routeLiked && isFocusedLikedPet && String(currentPet?.id) === focusPetId}
                   likesCount={Number(currentPet?.likes) || 0}
                   onToggleLike={isReadOnlyPreview ? undefined : handleOverlayLikeAction}
                 />
@@ -696,7 +698,7 @@ const PeTinderScreen = ({ navigation, route }) => {
             <PetExpandedOverlay
               visible={!isImageFocused && isDetailsExpanded}
               pet={currentPet}
-              liked={Boolean(currentPet?.liked)}
+              liked={routeLiked && isFocusedLikedPet && String(currentPet?.id) === focusPetId}
               likesCount={Number(currentPet?.likes) || 0}
               onToggleLike={isReadOnlyPreview ? undefined : handleOverlayLikeAction}
               onClose={handleCloseDetails}

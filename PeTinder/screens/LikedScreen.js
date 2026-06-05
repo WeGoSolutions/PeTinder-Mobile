@@ -118,7 +118,7 @@ const LikedScreen = ({ navigation }) => {
 		<TouchableOpacity
 			activeOpacity={0.85}
 			style={styles.card}
-			onPress={() => navigation.navigate('PeTinder', { focusPetId: item.id })}
+			onPress={() => navigation.navigate('PeTinder', { focusPetId: item.id, liked: true })}
 		>
 			<Image source={item.imageUri ? { uri: item.imageUri } : FALLBACK_PET_IMAGE} style={styles.cardImage} />
 
