@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { NavBar } from '../components/PeTinder/NavBar';
 import PetImageCarousel from '../components/PeTinder/PetImageCarousel';
 import PetInfoOverlay from '../components/PeTinder/PetInfoOverlay';
@@ -145,6 +146,7 @@ const hydratePetsWithImages = async (petList) => {
 const mapPetFromApi = (pet) => ({
   id: pet?.id,
   name: pet?.nome || 'Pet',
+  ongName: pet?.nomeOng,
   sex: pet?.sexo === 'FEMEA' ? 'F' : 'M',
   age: formatPetAge(pet?.idade),
   likes: Number(pet?.likes ?? pet?.curtidas) || 0,
@@ -187,6 +189,8 @@ const PeTinderScreen = ({ navigation, route }) => {
   const isImageFocusedRef = useRef(isImageFocused);
   const isDetailsExpandedRef = useRef(isDetailsExpanded);
   const shimmerTranslateX = useRef(new Animated.Value(-220)).current;
+  const likeHeartScale = useRef(new Animated.Value(0)).current;
+  const likeHeartOpacity = useRef(new Animated.Value(0)).current;
   const currentPet = pets[currentPetIndex] || null;
   const hasPets = pets.length > 0;
 
@@ -378,6 +382,33 @@ const PeTinderScreen = ({ navigation, route }) => {
     }
   };
 
+  const playLikeAnimation = () => {
+    likeHeartScale.setValue(0.4);
+    likeHeartOpacity.setValue(0);
+
+    Animated.parallel([
+      Animated.spring(likeHeartScale, {
+        toValue: 1,
+        friction: 5,
+        tension: 80,
+        useNativeDriver: true,
+      }),
+      Animated.sequence([
+        Animated.timing(likeHeartOpacity, {
+          toValue: 1,
+          duration: 140,
+          useNativeDriver: true,
+        }),
+        Animated.delay(350),
+        Animated.timing(likeHeartOpacity, {
+          toValue: 0,
+          duration: 280,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start();
+  };
+
   const handleToggleLike = async () => {
     if (isReadOnlyPreview) {
       return;
@@ -388,6 +419,14 @@ const PeTinderScreen = ({ navigation, route }) => {
     if (!selectedPet?.id) {
       return;
     }
+
+    // Feedback imediato: coração pulsa + toast avisando que foi salvo em Curtidas.
+    playLikeAnimation();
+    setToast({
+      visible: true,
+      type: 'success',
+      message: 'Pet salvo em Curtidas ❤️',
+    });
 
     try {
       const userId = await getAuthUserId();
@@ -668,11 +707,13 @@ const PeTinderScreen = ({ navigation, route }) => {
         ) : hasPets ? (
           <>
             <PetImageCarousel
+              key={String(currentPet?.id ?? currentPetIndex)}
               images={currentPet?.images || []}
               onFocusChange={handleFocusChange}
               onSwipeRight={isReadOnlyPreview ? undefined : handleRedAction}
               onSwipeLeft={isReadOnlyPreview ? undefined : handleGreenAction}
               onSwipeProgress={isReadOnlyPreview ? undefined : setSwipeOffsetX}
+              onDoubleTap={isReadOnlyPreview ? undefined : handleOverlayLikeAction}
               swipeEnabled={!isReadOnlyPreview}
             >
               {!isImageFocused && (
@@ -710,6 +751,16 @@ const PeTinderScreen = ({ navigation, route }) => {
             <Text style={styles.emptySubtitle}>No momento não há pets para exibir.</Text>
           </View>
         )}
+
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.likeHeartOverlay,
+            { opacity: likeHeartOpacity, transform: [{ scale: likeHeartScale }] },
+          ]}
+        >
+          <Ionicons name="heart" size={150} color="#FF4D8D" style={styles.likeHeartIcon} />
+        </Animated.View>
       </View>
 
       <NewUserOnboardingGate navigation={navigation} route={route} />
@@ -721,7 +772,7 @@ const PeTinderScreen = ({ navigation, route }) => {
         onRequestClose={handleClosePreviewMenu}
       >
         <Pressable style={styles.previewMenuBackdrop} onPress={handleClosePreviewMenu}>
-          <Pressable style={styles.previewMenuContent} onPress={() => {}}>
+          <Pressable style={styles.previewMenuContent} onPress={() => { }}>
             <Pressable
               style={styles.previewMenuItem}
               onPress={handleRemoveInterest}
@@ -747,7 +798,7 @@ const PeTinderScreen = ({ navigation, route }) => {
         onRequestClose={cancelRemoveInterest}
       >
         <Pressable style={styles.confirmationModalBackdrop} onPress={cancelRemoveInterest}>
-          <Pressable style={styles.confirmationModalContent} onPress={() => {}}>
+          <Pressable style={styles.confirmationModalContent} onPress={() => { }}>
             <Text style={styles.confirmationModalTitle}>Remover interesse?</Text>
             <Text style={styles.confirmationModalMessage}>
               Essa ação irá remover o interesse. Tem certeza?
@@ -792,6 +843,21 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  likeHeartOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 50,
+  },
+  likeHeartIcon: {
+    textShadowColor: 'rgba(0, 0, 0, 0.35)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 12,
   },
   previewMenuBackdrop: {
     flex: 1,

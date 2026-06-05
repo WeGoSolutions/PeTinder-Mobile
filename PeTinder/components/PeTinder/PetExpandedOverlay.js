@@ -12,6 +12,7 @@ import {
 } from "react-native";
 
 import { MaterialIcons } from '@expo/vector-icons';
+import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 
 import GeolocalizationScreen from "../../components/GeolocalizationScreen";
 
@@ -26,24 +27,33 @@ const PetDescriptionSection = ({ description }) => {
   );
 };
 
+const featureColor = (feature) => {
+  if (!feature) return "#7CD66D";
+  const f = String(feature).toLowerCase();
+  if (f.includes("castr")) return "#E45C62"; // Castrado
+  if (f.includes("vacin")) return "#F5B400"; // Vacinado
+  if (f.includes("vermif")) return "#7CD66D"; // Vermífugo / Vermifugado
+  return "#7CD66D";
+};
+
 const PetHealthSection = ({ features }) => {
   return (
     <View style={styles.healthContainer}>
-      {features.map((feature, index) => (
-        <View key={`${feature}-${index}`} style={styles.healthRow}>
-          <View
-            style={[
-              styles.healthIconDot,
-              index === 0 ? styles.healthIconRed : styles.healthIconGreen,
-            ]}
-          />
-          <Text style={styles.healthText}>{feature}</Text>
-        </View>
-      ))}
-      <View style={styles.distanciaContainer}>
-        <MaterialIcons name="location-on" size={20} color="#FFFFFF" />
-        <GeolocalizationScreen />
-      </View>
+      {features.map((feature, index) => {
+        const bg = featureColor(feature);
+
+        if (feature == "Vermífugo") {
+          feature = "Vermifugado"
+        }
+
+        return (
+          <View key={`${feature}-${index}`} style={styles.healthRow}>
+            <View style={[styles.healthIconDot, { backgroundColor: bg }]} />
+            <Text style={styles.healthText}>{feature}</Text>
+          </View>
+        );
+      })}
+      <View style={styles.distanciaContainer} />
     </View>
   );
 };
@@ -64,6 +74,7 @@ const PetExpandedOverlay = ({
   const onCloseRef = useRef(onClose);
   const sexSymbol = pet.sex === "M" ? "♂" : "♀";
   const tags = Array.isArray(pet.tags) ? pet.tags : [];
+  const ongName = pet.ongName ? pet.ongName : ""
 
   const description = useMemo(
     () =>
@@ -78,6 +89,7 @@ const PetExpandedOverlay = ({
 
   useEffect(() => {
     visibleRef.current = visible;
+    console.log(pet)
   }, [visible]);
 
   useEffect(() => {
@@ -236,6 +248,16 @@ const PetExpandedOverlay = ({
 
         <PetDescriptionSection description={description} />
         <PetHealthSection features={features} />
+        <View style={styles.aboveButtons} pointerEvents="box-none">
+          <View style={styles.geoRow}>
+            <FontAwesome5 name="building" size={20} color="#FFFFFF" />
+            <Text style={styles.ongNameText}>{ongName}</Text>
+          </View>
+          <View style={styles.geoRow}>
+            <MaterialIcons name="location-on" size={20} color="#FFFFFF" />
+            <GeolocalizationScreen />
+          </View>
+        </View>
       </Animated.View>
     </View>
   );
@@ -414,12 +436,6 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     marginRight: 8,
   },
-  healthIconRed: {
-    backgroundColor: "#E45C62",
-  },
-  healthIconGreen: {
-    backgroundColor: "#7CD66D",
-  },
   healthText: {
     color: "#FFFFFF",
     fontSize: 18,
@@ -430,6 +446,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 4,
   },
+  geoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  aboveButtons: {
+    position: 'absolute',
+    bottom: 100,
+    zIndex: 25,
+    gap: 5
+  },
+  ongNameText: {
+    color: '#FFFFFF',
+    fontSize: 16
+  }
 });
 
 export default PetExpandedOverlay;

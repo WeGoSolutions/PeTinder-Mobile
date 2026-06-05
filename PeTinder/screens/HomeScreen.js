@@ -5,7 +5,6 @@ import {
   StyleSheet,
   Image,
   Animated,
-  KeyboardAvoidingView,
   Platform,
   Keyboard,
 } from "react-native";
@@ -20,6 +19,14 @@ import ForgotPasswordModal from "../components/auth/ForgotPasswordModal";
 import LoginForm from "../components/auth/LoginForm";
 import RegisterForm from "../components/auth/RegisterForm";
 import { saveAuthSession } from "../storage/authSession";
+import {
+  validateFullName,
+  validateEmail,
+  validatePassword,
+  validateConfirmPassword,
+  validateBirthDate,
+  mapBackendValidationErrors,
+} from "../utils/validation";
 
 const HomeScreen = ({ navigation }) => {
   const USE_BACKEND =
@@ -54,6 +61,7 @@ const HomeScreen = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isCodeLoading, setIsCodeLoading] = useState(false);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [errors, setErrors] = useState({ email: false, password: false });
   const [errorMessage, setErrorMessage] = useState("");
   const [toast, setToast] = useState({
@@ -63,20 +71,44 @@ const HomeScreen = ({ navigation }) => {
   });
   const acknowledgeTimerRef = useRef(null);
   const fadeAnim = useRef(new Animated.Value(1)).current;
+  // Quanto a folha de auth deve subir para ficar acima do teclado. Animado para
+  // acompanhar a abertura/fechamento do teclado de forma suave.
+  const keyboardPad = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const showSub = Keyboard.addListener("keyboardDidShow", () => {
+    // iOS expõe os eventos "will" (com duração da animação); o Android só os
+    // "did". Usamos a altura real do teclado (endCoordinates.height) para subir
+    // a folha exatamente o necessário — mesma conta nos dois sistemas.
+    const showEvent =
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const showSub = Keyboard.addListener(showEvent, (event) => {
+      const height = event?.endCoordinates?.height ?? 0;
       setIsKeyboardVisible(true);
+      setKeyboardHeight(height);
+      Animated.timing(keyboardPad, {
+        toValue: height,
+        duration: event?.duration ?? 220,
+        useNativeDriver: false,
+      }).start();
     });
-    const hideSub = Keyboard.addListener("keyboardDidHide", () => {
+    const hideSub = Keyboard.addListener(hideEvent, (event) => {
       setIsKeyboardVisible(false);
+      setKeyboardHeight(0);
+      Animated.timing(keyboardPad, {
+        toValue: 0,
+        duration: event?.duration ?? 220,
+        useNativeDriver: false,
+      }).start();
     });
 
     return () => {
       showSub.remove();
       hideSub.remove();
     };
-  }, []);
+  }, [keyboardPad]);
 
   useEffect(() => {
     return () => {
@@ -285,25 +317,13 @@ const validateEmailCode = (codeDigitado, codeGerado, isValid) => {
       terms: "",
     };
 
-    const trimmedName = fullName.trim();
-    const trimmedEmail = registerEmail.trim();
-    const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail);
-
-    if (!trimmedName) {
-      nextErrors.fullName = "Digite o nome completo";
-    }
-
-    if (!trimmedEmail || !isValidEmail) {
-      nextErrors.email = "Email inválido";
-    }
-
-    if (!registerPassword || registerPassword.length < 8) {
-      nextErrors.password = "A senha deve ter no mínimo 8 caracteres";
-    }
-
-    if (!confirmRegisterPassword || confirmRegisterPassword !== registerPassword) {
-      nextErrors.confirmPassword = "As senhas não coincidem";
-    }
+    nextErrors.fullName = validateFullName(fullName);
+    nextErrors.email = validateEmail(registerEmail);
+    nextErrors.password = validatePassword(registerPassword);
+    nextErrors.confirmPassword = validateConfirmPassword(
+      registerPassword,
+      confirmRegisterPassword
+    );
 
     setRegisterErrors(nextErrors);
 
@@ -329,11 +349,7 @@ const validateEmailCode = (codeDigitado, codeGerado, isValid) => {
       terms: "",
     };
 
-    if (!birthDate) {
-      nextErrors.birthDate = "Selecione a data de nascimento";
-    } else if (!isBirthDateInPast(birthDate)) {
-      nextErrors.birthDate = "A data de nascimento deve ser no passado";
-    }
+    nextErrors.birthDate = validateBirthDate(birthDate);
 
     if (!acceptedTerms) {
       nextErrors.terms = "Você precisa aceitar os Termos de condição.";
@@ -358,6 +374,31 @@ const validateEmailCode = (codeDigitado, codeGerado, isValid) => {
     }, 5000);
   };
 
+  const handleFullNameBlur = () => {
+    setRegisterErrors((prev) => ({ ...prev, fullName: validateFullName(fullName) }));
+  };
+
+  const handleRegisterEmailBlur = () => {
+    setRegisterErrors((prev) => ({ ...prev, email: validateEmail(registerEmail) }));
+  };
+
+  const handleRegisterPasswordBlur = () => {
+    setRegisterErrors((prev) => ({
+      ...prev,
+      password: validatePassword(registerPassword),
+    }));
+  };
+
+  const handleConfirmRegisterPasswordBlur = () => {
+    setRegisterErrors((prev) => ({
+      ...prev,
+      confirmPassword: validateConfirmPassword(
+        registerPassword,
+        confirmRegisterPassword
+      ),
+    }));
+  };
+
   const formatBirthDateForApi = (dateValue) => {
     if (!dateValue) {
       return null;
@@ -374,24 +415,6 @@ const validateEmailCode = (codeDigitado, codeGerado, isValid) => {
     const day = String(parsedDate.getDate()).padStart(2, "0");
 
     return `${year}-${month}-${day}`;
-  };
-
-  const isBirthDateInPast = (dateValue) => {
-    if (!dateValue) {
-      return false;
-    }
-
-    const parsedDate = new Date(dateValue);
-
-    if (Number.isNaN(parsedDate.getTime())) {
-      return false;
-    }
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    parsedDate.setHours(0, 0, 0, 0);
-
-    return parsedDate < today;
   };
 
   const handleAcknowledgeImportant = () => {
@@ -461,22 +484,61 @@ const validateEmailCode = (codeDigitado, codeGerado, isValid) => {
       })
       .catch((error) => {
         console.error("Erro no cadastro:", error.response?.data || error.message);
-        setToast({
-          visible: true,
-          type: "error",
-          message:
-            error.code === "ECONNABORTED"
-              ? "Tempo de resposta esgotado. Verifique o backend e tente novamente."
-              : error.response?.data?.message ||
-              "Erro ao criar conta. Verifique sua conexão e tente novamente.",
-        });
-        setTimeout(() => {
-          setToast((prev) => ({ ...prev, visible: false }));
-        }, 2500);
 
         setShowImportantModal(false);
         setIsCreateAccountLoading(false);
         setCanAcknowledgeImportant(false);
+
+        const data = error.response?.data;
+        const status = error.response?.status;
+
+        const showToast = (message) => {
+          setToast({ visible: true, type: "error", message });
+          setTimeout(() => {
+            setToast((prev) => ({ ...prev, visible: false }));
+          }, 2500);
+        };
+
+        // Timeout de conexão
+        if (error.code === "ECONNABORTED") {
+          showToast(
+            "Tempo de resposta esgotado. Verifique o backend e tente novamente."
+          );
+          return;
+        }
+
+        // 400 com erros de validação por campo (nome/email/senha/dataNascimento)
+        if (data?.validationErrors) {
+          const mapped = mapBackendValidationErrors(data.validationErrors);
+          setRegisterErrors((prev) => ({ ...prev, ...mapped }));
+
+          if (mapped.fullName || mapped.email || mapped.password) {
+            setRegisterStep(1);
+          }
+
+          showToast("Corrija os campos destacados.");
+          return;
+        }
+
+        // 409 email já cadastrado
+        if (status === 409) {
+          setRegisterErrors((prev) => ({
+            ...prev,
+            email: data?.message || "Email já está em uso",
+          }));
+          setRegisterStep(1);
+          return;
+        }
+
+        // 400 de domínio (ex.: idade mínima) — retorna apenas "message"
+        if (data?.message) {
+          setRegisterErrors((prev) => ({ ...prev, birthDate: data.message }));
+          setRegisterStep(2);
+          return;
+        }
+
+        // Falha genérica (rede indisponível, etc.)
+        showToast("Erro ao criar conta. Verifique sua conexão e tente novamente.");
       });
   };
 
@@ -570,6 +632,10 @@ const validateEmailCode = (codeDigitado, codeGerado, isValid) => {
             setRegisterErrors((prev) => ({ ...prev, terms: "" }));
           }
         }}
+        onFullNameBlur={handleFullNameBlur}
+        onRegisterEmailBlur={handleRegisterEmailBlur}
+        onRegisterPasswordBlur={handleRegisterPasswordBlur}
+        onConfirmRegisterPasswordBlur={handleConfirmRegisterPasswordBlur}
         onRegisterNext={handleRegisterNext}
         onCreateAccount={handleCreateAccount}
       />
@@ -581,6 +647,7 @@ const validateEmailCode = (codeDigitado, codeGerado, isValid) => {
       title={showRegister ? "Criar Conta" : showLogin ? "Entrar" : "Bem vindo ao PeTinder"}
       showBackButton={showLogin || showRegister}
       onBack={handleBackFromAuth}
+      keyboardHeight={showForgotPassword ? 0 : keyboardHeight}
     >
       <Animated.View style={{ opacity: fadeAnim }}>{renderAuthContent()}</Animated.View>
     </ActionSheet>
@@ -614,17 +681,15 @@ const validateEmailCode = (codeDigitado, codeGerado, isValid) => {
           resizeMode="contain"
         />
 
-        {/* ActionSheet sempre renderizada. Sobe com o teclado só se não houver modal */}
+        {/* ActionSheet sempre renderizada. Sobe com o teclado só se não houver modal.
+            paddingBottom animado = altura do teclado, então a folha encosta no
+            topo do teclado e o conteúdo rola por dentro (sem cortar o topo). */}
         {showForgotPassword ? (
           actionSheet
         ) : (
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "position"}
-            keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 0}
-            style={{ width: "100%" }}
-          >
+          <Animated.View style={{ width: "100%", paddingBottom: keyboardPad }}>
             {actionSheet}
-          </KeyboardAvoidingView>
+          </Animated.View>
         )}
 
         {/* Modal flutuante, só ele sobe com o teclado */}

@@ -2,7 +2,7 @@ import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 
-const Checkbox = ({ checked, onChange, label, error }) => {
+const Checkbox = ({ checked, onChange, label, error, errorText }) => {
   return (
     <View style={styles.wrapper}>
       <Pressable
@@ -15,6 +15,7 @@ const Checkbox = ({ checked, onChange, label, error }) => {
         </View>
         <Text style={[styles.label, error && styles.labelError]}>{label}</Text>
       </Pressable>
+      {errorText ? <Text style={styles.errorText}>{errorText}</Text> : null}
     </View>
   );
 };
@@ -53,6 +54,12 @@ const styles = StyleSheet.create({
   },
   labelError: {
     color: "#FF6B6B",
+  },
+  errorText: {
+    marginTop: 6,
+    fontSize: 12,
+    color: "#FF6B6B",
+    fontFamily: "Poppins_400Regular",
   },
 });
 
