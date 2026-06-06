@@ -21,12 +21,6 @@ export const NavBar = ({ navigation }) => {
         <LogoWithText fontSize={20} iconSize={30} style={styles.logo} />
       </View>
       <View style={styles.buttonsContainer}>
-        <Pressable onPress={() => console.log("Notifications")}> 
-          <Image
-            source={require("../../assets/notify-icon.png")}
-            style={styles.image}
-          />
-        </Pressable>
         <Pressable onPress={toLiked}>
           <Image
             source={require("../../assets/likeds-icon.png")}
