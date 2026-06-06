@@ -1238,7 +1238,7 @@ const ChatConversationScreen = ({ navigation }) => {
       }
 
       await api.delete(`/status/${petId}/${userId.id}`);
-      
+
       try {
         await deleteChat(resolvedChatId);
       } catch (error) {
@@ -1384,6 +1384,15 @@ const ChatConversationScreen = ({ navigation }) => {
           </View>
         )}
 
+        {isRecordingAudio && (
+          <View style={styles.recordingHintRow}>
+            <View style={styles.recordingDot} />
+            <Text style={styles.recordingHintText}>
+              Gravando... solte para enviar {formatAudioDuration(recordingAudioDurationMs)}
+            </Text>
+          </View>
+        )}
+
         <View
           style={[
             styles.inputRow,
@@ -1448,15 +1457,6 @@ const ChatConversationScreen = ({ navigation }) => {
             <Text style={styles.sendButtonText}>Enviar</Text>
           </Pressable>
         </View>
-
-        {isRecordingAudio && (
-          <View style={styles.recordingHintRow}>
-            <View style={styles.recordingDot} />
-            <Text style={styles.recordingHintText}>
-              Gravando... solte para enviar {formatAudioDuration(recordingAudioDurationMs)}
-            </Text>
-          </View>
-        )}
 
         <Modal
           visible={isImageComposeVisible}
@@ -1573,7 +1573,7 @@ const ChatConversationScreen = ({ navigation }) => {
           onRequestClose={handleCloseConversationMenu}
         >
           <Pressable style={styles.conversationMenuBackdrop} onPress={handleCloseConversationMenu}>
-            <Pressable style={styles.conversationMenuContent} onPress={() => {}}>
+            <Pressable style={styles.conversationMenuContent} onPress={() => { }}>
               <Pressable
                 style={styles.conversationMenuItem}
                 onPress={handleRemoveInterestFromChat}
