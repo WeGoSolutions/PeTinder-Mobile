@@ -14,6 +14,7 @@ import {
   Alert,
   Modal,
   ActivityIndicator,
+  Dimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
@@ -369,8 +370,17 @@ const ChatConversationScreen = ({ navigation }) => {
     const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
 
     const onShow = Keyboard.addListener(showEvent, (event) => {
-      const keyboardHeight = Number(event?.endCoordinates?.height || 0);
-      setKeyboardOffset(Math.max(0, keyboardHeight));
+      const coords = event?.endCoordinates;
+      // Duas medições da altura do teclado e usamos a MAIOR. No Android com
+      // edge-to-edge, alguns aparelhos/teclados reportam `height` SEM a barra de
+      // navegação (levanta de menos e o teclado cobre o input). `screenY` (topo
+      // do teclado) dá a oclusão real a partir do fundo da janela. iOS: as duas
+      // batem. Assim funciona em qualquer celular sem quebrar os que já iam bem.
+      const byHeight = Number(coords?.height || 0);
+      const screenY = Number(coords?.screenY ?? 0);
+      const windowHeight = Dimensions.get("window").height;
+      const byScreenY = screenY > 0 ? Math.max(0, windowHeight - screenY) : 0;
+      setKeyboardOffset(Math.max(0, byHeight, byScreenY));
     });
 
     const onHide = Keyboard.addListener(hideEvent, () => {

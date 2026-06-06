@@ -13,6 +13,7 @@ import {
 
 import { MaterialIcons } from '@expo/vector-icons';
 import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import GeolocalizationScreen from "../../components/GeolocalizationScreen";
 
@@ -67,6 +68,7 @@ const PetExpandedOverlay = ({
   onClose,
 }) => {
   const SCREEN_HEIGHT = Dimensions.get("window").height;
+  const insets = useSafeAreaInsets();
   const animationValue = useRef(new Animated.Value(0)).current;
   const dragTranslateY = useRef(new Animated.Value(0)).current;
   const skipNextCloseAnimation = useRef(false);
@@ -190,7 +192,7 @@ const PetExpandedOverlay = ({
       </Pressable>
 
       <Animated.View
-        style={[styles.panel, animatedPanelStyle]}
+        style={[styles.panel, animatedPanelStyle, { paddingBottom: 95 + insets.bottom }]}
         {...panResponder.panHandlers}
       >
         <View style={styles.separatorContainer}>
@@ -248,7 +250,7 @@ const PetExpandedOverlay = ({
 
         <PetDescriptionSection description={description} />
         <PetHealthSection features={features} />
-        <View style={styles.aboveButtons} pointerEvents="box-none">
+        <View style={[styles.aboveButtons, { bottom: 100 + insets.bottom }]} pointerEvents="box-none">
           <View style={styles.geoRow}>
             <FontAwesome5 name="building" size={20} color="#FFFFFF" />
             <Text style={styles.ongNameText}>{ongName}</Text>

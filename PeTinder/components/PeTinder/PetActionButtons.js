@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Pressable, Image, StyleSheet, Animated, Easing, Dimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const SWIPE_EFFECT_DISTANCE = 140;
 const SWIPE_BUTTON_SCALE_BOOST = 0.14;
 
 const PetActionButtons = ({ onGreenPress, onRedPress, expanded = false, swipeOffsetX = 0 }) => {
+  const insets = useSafeAreaInsets();
   const screenWidth = Dimensions.get('window').width;
   const [containerWidth, setContainerWidth] = useState(screenWidth);
   const transition = useRef(new Animated.Value(expanded ? 1 : 0)).current;
@@ -21,9 +23,11 @@ const PetActionButtons = ({ onGreenPress, onRedPress, expanded = false, swipeOff
   const expandedButtonWidth = Math.max(containerWidth / 2, 75);
 
   const containerAnimatedStyle = {
+    // Sobe os botões acima da barra de gestos/home indicator (insets.bottom),
+    // tanto no card normal (round, +18) quanto na visão expandida (barra, +0).
     bottom: transition.interpolate({
       inputRange: [0, 1],
-      outputRange: [18, 0],
+      outputRange: [18 + insets.bottom, insets.bottom],
     }),
   };
 
