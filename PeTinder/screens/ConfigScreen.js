@@ -290,7 +290,7 @@ const ConfigScreen = ({ navigation }) => {
                 setLocalImageUri(null);
                 setImageBase64(null);
                 await loadUserProfile();
-                console.log("Salvar dados:", personalDataRaw, addressDataRaw);
+                // console.log("Salvar dados:", personalDataRaw, addressDataRaw);
               }}
               userId={userId}
               nomeUser={userProfile?.nome || "Sem nome"}

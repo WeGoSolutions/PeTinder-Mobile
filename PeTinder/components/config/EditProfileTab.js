@@ -231,7 +231,7 @@ export const EditProfileTab = ({
       );
 
       if (!result.success) {
-        console.log(result.message);
+        // console.log(result.message);
         return;
       }
 

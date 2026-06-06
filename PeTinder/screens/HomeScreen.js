@@ -120,46 +120,46 @@ const HomeScreen = ({ navigation }) => {
 
   const openMissPasswordReset = () => {
     // Lógica para abrir a tela de recuperação de senha
-    console.log("Abrir tela de recuperação de senha");
+    // console.log("Abrir tela de recuperação de senha");
     setShowForgotPassword(true);
     setResetPasswordSteps(1);
   };
 
-const validateEmailCode = (codeDigitado, codeGerado, isValid) => {
-  setIsCodeLoading(true);
+  const validateEmailCode = (codeDigitado, codeGerado, isValid) => {
+    setIsCodeLoading(true);
 
-  setTimeout(() => {
-    setIsCodeLoading(false);
+    setTimeout(() => {
+      setIsCodeLoading(false);
 
-    if (!isValid) {
-      setToast({
-        visible: true,
-        type: "error",
-        message: "O código expirou. Solicite outro.",
-      });
-      setTimeout(() => {
-        setToast((prev) => ({ ...prev, visible: false }));
-      }, 2500);
-      return;
-    }
+      if (!isValid) {
+        setToast({
+          visible: true,
+          type: "error",
+          message: "O código expirou. Solicite outro.",
+        });
+        setTimeout(() => {
+          setToast((prev) => ({ ...prev, visible: false }));
+        }, 2500);
+        return;
+      }
 
-    if (codeDigitado !== codeGerado) {
-      setToast({
-        visible: true,
-        type: "error",
-        message: "Código inválido.",
-      });
-      setTimeout(() => {
-        setToast((prev) => ({ ...prev, visible: false }));
-      }, 2500);
+      if (codeDigitado !== codeGerado) {
+        setToast({
+          visible: true,
+          type: "error",
+          message: "Código inválido.",
+        });
+        setTimeout(() => {
+          setToast((prev) => ({ ...prev, visible: false }));
+        }, 2500);
+        setCode("");
+        return;
+      }
+
       setCode("");
-      return;
-    }
-
-    setCode("");
-    setResetPasswordSteps(3);
-  }, 3000);
-};
+      setResetPasswordSteps(3);
+    }, 3000);
+  };
 
   const [isResetLoading, setIsResetLoading] = useState(false);
   const handleResetPassword = () => {
@@ -234,7 +234,7 @@ const validateEmailCode = (codeDigitado, codeGerado, isValid) => {
         timeout: REQUEST_TIMEOUT_MS,
       })
       .then((response) => {
-        console.log("Login sucesso:", response.data);
+        // console.log("Login sucesso:", response.data);
         const isNewUser = Boolean(response?.data?.userNovo);
         saveAuthSession({
           id: response?.data?.id,
@@ -477,7 +477,7 @@ const validateEmailCode = (codeDigitado, codeGerado, isValid) => {
         timeout: REQUEST_TIMEOUT_MS,
       })
       .then((response) => {
-        console.log("Cadastro sucesso:", response.data);
+        // console.log("Cadastro sucesso:", response.data);
         setEmail(registerEmail);
         setPassword("");
         finalizeRegisterSuccess();
