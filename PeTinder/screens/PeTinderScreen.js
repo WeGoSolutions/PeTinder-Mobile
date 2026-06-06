@@ -18,6 +18,7 @@ import PetImageCarousel from '../components/PeTinder/PetImageCarousel';
 import PetInfoOverlay from '../components/PeTinder/PetInfoOverlay';
 import PetActionButtons from '../components/PeTinder/PetActionButtons';
 import PetExpandedOverlay from '../components/PeTinder/PetExpandedOverlay';
+import AdoptionOverlay from '../components/PeTinder/AdoptionOverlay';
 import NewUserOnboardingGate from '../components/PeTinder/NewUserOnboardingGate';
 import { CustomHeader } from '../components/CustomHeader';
 import Toast from '../components/Toast';
@@ -191,6 +192,8 @@ const PeTinderScreen = ({ navigation, route }) => {
   const shimmerTranslateX = useRef(new Animated.Value(-220)).current;
   const likeHeartScale = useRef(new Animated.Value(0)).current;
   const likeHeartOpacity = useRef(new Animated.Value(0)).current;
+  const adoptionOverlayRef = useRef(null);
+  const isAdoptingRef = useRef(false);
   const currentPet = pets[currentPetIndex] || null;
   const hasPets = pets.length > 0;
 
@@ -510,14 +513,11 @@ const PeTinderScreen = ({ navigation, route }) => {
     }
   };
 
-  const handleGreenAction = async () => {
-    if (isReadOnlyPreview) {
-      return;
-    }
-
+  const performAdoption = async () => {
     const selectedPet = pets[currentPetIndex];
 
     if (!selectedPet?.id) {
+      isAdoptingRef.current = false;
       return;
     }
 
@@ -546,6 +546,36 @@ const PeTinderScreen = ({ navigation, route }) => {
       navigation.navigate('Chat', { title: 'Chat' });
     } catch (error) {
       console.error('Erro ao criar pendencia de chat:', error?.response?.data || error?.message);
+    } finally {
+      isAdoptingRef.current = false;
+    }
+  };
+
+  const handleGreenAction = () => {
+    if (isReadOnlyPreview) {
+      return;
+    }
+
+    // Evita disparo duplo enquanto a animação de adoção está rodando.
+    if (isAdoptingRef.current) {
+      return;
+    }
+
+    const selectedPet = pets[currentPetIndex];
+
+    if (!selectedPet?.id) {
+      return;
+    }
+
+    // Microinteração de adoção: confirma visualmente e SÓ DEPOIS envia pro chat.
+    isAdoptingRef.current = true;
+
+    if (adoptionOverlayRef.current?.play) {
+      adoptionOverlayRef.current.play(() => {
+        performAdoption();
+      });
+    } else {
+      performAdoption();
     }
   };
 
@@ -761,6 +791,8 @@ const PeTinderScreen = ({ navigation, route }) => {
         >
           <Ionicons name="heart" size={150} color="#FF4D8D" style={styles.likeHeartIcon} />
         </Animated.View>
+
+        <AdoptionOverlay ref={adoptionOverlayRef} />
       </View>
 
       <NewUserOnboardingGate navigation={navigation} route={route} />

@@ -1,14 +1,19 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const PetInfoOverlay = ({ pet, onToggleDetails, liked, likesCount, onToggleLike }) => {
+  const insets = useSafeAreaInsets();
   const sexSymbol = pet.sex === 'M' ? '♂' : '♀';
   const tags = Array.isArray(pet.tags) ? pet.tags : [];
   const visibleTags = tags.slice(0, 3);
   const hasMoreTags = tags.length > visibleTags.length;
 
   return (
-    <View style={styles.container} pointerEvents="box-none">
+    <View
+      style={[styles.container, { paddingBottom: 100 + insets.bottom }]}
+      pointerEvents="box-none"
+    >
       <Pressable style={styles.infoTouchArea} onPress={onToggleDetails}>
         <View style={styles.infoContainer}>
           <View style={styles.mainInfo}>
@@ -75,7 +80,8 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-end',
     paddingHorizontal: 14,
-    paddingBottom: 100,
+    // paddingBottom é aplicado inline (100 + insets.bottom) para acompanhar os
+    // botões de ação, que sobem por insets.bottom acima da barra de gestos.
   },
   infoTouchArea: {
     width: '100%',

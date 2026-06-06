@@ -104,8 +104,18 @@ const PetImageCarousel = ({
         }
 
         if (shouldSwipeLeft) {
-          const target = -((containerWidth || 320) + 120);
-          animateSwipeOutAndRun(target, onSwipeLeft);
+          // Adoção: NÃO desliza o card pra fora (evita o "vai pra esquerda e
+          // volta"). Volta suavemente ao centro e dispara a ação na hora — a
+          // microinteração de adoção assume o feedback. Fluxo: arrasto →
+          // animação → chat.
+          onSwipeProgress?.(0);
+          onSwipeLeft?.();
+          Animated.spring(swipeTranslateX, {
+            toValue: 0,
+            useNativeDriver: true,
+            bounciness: 0,
+            speed: 24,
+          }).start();
           return;
         }
 
