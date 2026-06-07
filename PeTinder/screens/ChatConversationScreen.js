@@ -269,7 +269,7 @@ const ChatConversationScreen = ({ navigation }) => {
     [chatId, currentUserId, participantId, petId],
   );
 
-  const conversationTitle = petName && !isAiChat ? `${userName} • ${petName}` : userName;
+  const conversationTitle = petName && !isAiChat ? `${petName} • ${userName}` : userName;
 
   useEffect(() => {
     const loadSession = async () => {
@@ -1183,7 +1183,7 @@ const ChatConversationScreen = ({ navigation }) => {
     navigation.push("PeTinder", {
       focusPetId: petId,
       readOnlyPreview: true,
-      previewTitle: userName,
+      previewTitle: petName,
     });
   };
 
