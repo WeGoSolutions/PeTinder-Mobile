@@ -197,26 +197,56 @@ const PeTinderScreen = ({ navigation, route }) => {
   const currentPet = pets[currentPetIndex] || null;
   const hasPets = pets.length > 0;
 
+  const [currentPage, setCurrentPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
   isImageFocusedRef.current = isImageFocused;
   isDetailsExpandedRef.current = isDetailsExpanded;
 
-  const loadDefaultPets = useCallback(async () => {
+  const loadDefaultPets = useCallback(async (page = 0) => {
     const userId = await getAuthUserId();
 
     if (!userId) {
       return [];
     }
 
-    const response = await api.get(`/status/default/${userId}`);
-    const apiList = Array.isArray(response?.data?.content) ? response.data.content : [];
+    const response = await api.get(
+      `/status/default/${userId}?page=${page}&size=10`
+    );
+
+    setCurrentPage(response.data.number);
+    setTotalPages(response.data.totalPages);
+
+    const apiList = Array.isArray(response?.data?.content)
+      ? response.data.content
+      : [];
 
     if (!apiList.length) {
       return [];
     }
 
     const mappedPets = apiList.map(mapPetFromApi);
+
     return hydratePetsWithImages(mappedPets);
   }, []);
+
+  const loadPage = async (page) => {
+    try {
+      setIsLoadingPets(true);
+
+      const petsFromPage = await loadDefaultPets(page);
+
+      setPets(petsFromPage);
+      setCurrentPetIndex(0);
+    } catch (error) {
+      console.error(
+        'Erro ao carregar página:',
+        error?.response?.data || error?.message
+      );
+    } finally {
+      setIsLoadingPets(false);
+    }
+  };
 
   const loadFocusedPet = useCallback(async (petId) => {
     if (!petId) {
@@ -245,7 +275,8 @@ const PeTinderScreen = ({ navigation, route }) => {
         try {
           setIsLoadingPets(true);
 
-          const hydratedDefaultPets = await loadDefaultPets();
+          const hydratedDefaultPets = await loadDefaultPets(0);
+          setCurrentPage(0);
 
           if (!isActive) {
             return;
@@ -471,13 +502,28 @@ const PeTinderScreen = ({ navigation, route }) => {
     }
   };
 
-  const goToNextPet = () => {
+  const goToNextPet = async () => {
     setSwipeOffsetX(0);
     setIsDetailsExpanded(false);
 
-    if (pets.length > 0) {
-      setCurrentPetIndex((prevIndex) => (prevIndex + 1) % pets.length);
+    if (!pets.length) {
+      return;
     }
+
+    const isLastPetOfCurrentPage =
+      currentPetIndex === pets.length - 1;
+
+    if (!isLastPetOfCurrentPage) {
+      setCurrentPetIndex((prevIndex) => prevIndex + 1);
+      return;
+    }
+
+    const nextPage =
+      currentPage + 1 >= totalPages
+        ? 0
+        : currentPage + 1;
+
+    await loadPage(nextPage);
   };
 
   const goToNextPetAfterRemoval = () => {
