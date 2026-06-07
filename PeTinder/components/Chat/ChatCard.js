@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable, Image } from "react-native";
 
 const ChatCard = ({
   name = "Buddy",
+  ongName = "ONG",
   lastMessage = "Hey! How are you?",
   isLastMessageMine = false,
   lastMessageTime = "",
@@ -25,7 +26,7 @@ const ChatCard = ({
 
       <View style={styles.textsContainer}>
         <View style={styles.topRow}>
-          <Text numberOfLines={1} style={styles.name}>{name}</Text>
+          <Text numberOfLines={1} style={styles.name}>{name} • {ongName}</Text>
           {Boolean(lastMessageTime) && <Text style={styles.time}>{lastMessageTime}</Text>}
         </View>
 

@@ -75,6 +75,7 @@ const ChatScreen = ({ navigation }) => {
   const [isChatsLoaded, setIsChatsLoaded] = useState(!hasRequiredFirebaseConfig);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUserName, setCurrentUserName] = useState('Você');
+  const [ongNamesById, setOngNamesById] = useState({});
   const [apiError, setApiError] = useState('');
   const [firebaseError, setFirebaseError] = useState('');
   const [isGroupModalVisible, setIsGroupModalVisible] = useState(false);
@@ -217,6 +218,61 @@ const ChatScreen = ({ navigation }) => {
     };
   }, []);
 
+  useEffect(() => {
+    const uniqueOngIds = Array.from(
+      new Set(
+        pets
+          .map((pet) => String(pet?.ongId || '').trim())
+          .filter(Boolean),
+      ),
+    );
+
+    if (!uniqueOngIds.length) {
+      setOngNamesById({});
+      return undefined;
+    }
+
+    let isCancelled = false;
+
+    const loadOngNames = async () => {
+      const entries = await Promise.all(
+        uniqueOngIds.map(async (ongId) => {
+          try {
+            const response = await api.get(`/ongs/${ongId}`);
+            const ongName = String(
+              response?.data?.nome
+              || response?.data?.name
+              || response?.data?.razaoSocial
+              || '',
+            ).trim();
+
+            return [ongId, ongName];
+          } catch (error) {
+            console.error(`Erro ao carregar ONG ${ongId}:`, error?.response?.data || error?.message);
+            return [ongId, ''];
+          }
+        }),
+      );
+
+      if (isCancelled) {
+        return;
+      }
+
+      setOngNamesById(
+        entries.reduce((accumulator, [ongId, ongName]) => {
+          accumulator[ongId] = ongName;
+          return accumulator;
+        }, {}),
+      );
+    };
+
+    loadOngNames();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [pets]);
+
   useFocusEffect(
     React.useCallback(() => {
       const reloadPets = async () => {
@@ -243,6 +299,7 @@ const ChatScreen = ({ navigation }) => {
           const chatId = buildDirectChatId(currentUserId, pet.ongId, pet.petId);
           const legacyChatId = buildDirectChatId(currentUserId, pet.ongId);
           const firebaseChat = firebaseChatsById[chatId] || firebaseChatsById[legacyChatId];
+          const ongName = ongNamesById[pet.ongId] || 'ONG';
 
           return {
             id: chatId || pet.petId,
@@ -250,7 +307,8 @@ const ChatScreen = ({ navigation }) => {
             participantId: pet.ongId,
             petId: pet.petId,
             petName: pet.petNome || null,
-            name: pet.petNome || 'Pet',
+            ongName,
+            name: ongName,
             lastMessage: firebaseChat?.lastMessage || 'Toque para iniciar conversa',
             isLastMessageMine: String(firebaseChat?.lastMessageSenderId || '') === String(currentUserId || ''),
             avatar: pet.imageUrl || null,
@@ -284,7 +342,7 @@ const ChatScreen = ({ navigation }) => {
 
       return Array.from(mergedById.values()).sort((a, b) => b.lastMessageAt - a.lastMessageAt);
     },
-    [pets, currentUserId, firebaseChatsById],
+    [pets, currentUserId, firebaseChatsById, ongNamesById],
   );
 
   const selectableUsers = useMemo(
@@ -367,7 +425,7 @@ const ChatScreen = ({ navigation }) => {
   const openConversation = (chat) => {
     navigation.navigate('ChatConversation', {
       chatId: chat.chatId || chat.id,
-      userName: chat.name,
+      userName: chat.ongName || chat.name,
       petName: chat.petName || null,
       participantId: chat.participantId || null,
       petId: chat.petId || null,
@@ -420,7 +478,8 @@ const ChatScreen = ({ navigation }) => {
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
             <ChatCard
-              name={item.name}
+              name={item.petName}
+              ongName={item.ongName}
               lastMessage={item.lastMessage}
               isLastMessageMine={item.isLastMessageMine}
               lastMessageTime={formatChatTime(item.lastMessageAt)}
