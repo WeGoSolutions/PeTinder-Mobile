@@ -19,6 +19,7 @@ import PetInfoOverlay from '../components/PeTinder/PetInfoOverlay';
 import PetActionButtons from '../components/PeTinder/PetActionButtons';
 import PetExpandedOverlay from '../components/PeTinder/PetExpandedOverlay';
 import AdoptionOverlay from '../components/PeTinder/AdoptionOverlay';
+import LikeOverlay from '../components/PeTinder/LikeOverlay';
 import NewUserOnboardingGate from '../components/PeTinder/NewUserOnboardingGate';
 import { CustomHeader } from '../components/CustomHeader';
 import Toast from '../components/Toast';
@@ -190,8 +191,7 @@ const PeTinderScreen = ({ navigation, route }) => {
   const isImageFocusedRef = useRef(isImageFocused);
   const isDetailsExpandedRef = useRef(isDetailsExpanded);
   const shimmerTranslateX = useRef(new Animated.Value(-220)).current;
-  const likeHeartScale = useRef(new Animated.Value(0)).current;
-  const likeHeartOpacity = useRef(new Animated.Value(0)).current;
+  const likeOverlayRef = useRef(null);
   const adoptionOverlayRef = useRef(null);
   const isAdoptingRef = useRef(false);
   const currentPet = pets[currentPetIndex] || null;
@@ -386,30 +386,7 @@ const PeTinderScreen = ({ navigation, route }) => {
   };
 
   const playLikeAnimation = () => {
-    likeHeartScale.setValue(0.4);
-    likeHeartOpacity.setValue(0);
-
-    Animated.parallel([
-      Animated.spring(likeHeartScale, {
-        toValue: 1,
-        friction: 5,
-        tension: 80,
-        useNativeDriver: true,
-      }),
-      Animated.sequence([
-        Animated.timing(likeHeartOpacity, {
-          toValue: 1,
-          duration: 140,
-          useNativeDriver: true,
-        }),
-        Animated.delay(350),
-        Animated.timing(likeHeartOpacity, {
-          toValue: 0,
-          duration: 280,
-          useNativeDriver: true,
-        }),
-      ]),
-    ]).start();
+    likeOverlayRef.current?.play();
   };
 
   const handleToggleLike = async () => {
@@ -543,7 +520,10 @@ const PeTinderScreen = ({ navigation, route }) => {
       } else if (pets.length <= 1) {
         setCurrentPetIndex(0);
       }
-      navigation.navigate('Chat', { title: 'Chat' });
+      navigation.navigate('Chat', {
+        title: 'Chat',
+        adoptedPetName: selectedPet.name || '',
+      });
     } catch (error) {
       console.error('Erro ao criar pendencia de chat:', error?.response?.data || error?.message);
     } finally {
@@ -782,16 +762,7 @@ const PeTinderScreen = ({ navigation, route }) => {
           </View>
         )}
 
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.likeHeartOverlay,
-            { opacity: likeHeartOpacity, transform: [{ scale: likeHeartScale }] },
-          ]}
-        >
-          <Ionicons name="heart" size={150} color="#FF4D8D" style={styles.likeHeartIcon} />
-        </Animated.View>
-
+        <LikeOverlay ref={likeOverlayRef} />
         <AdoptionOverlay ref={adoptionOverlayRef} />
       </View>
 
@@ -875,21 +846,6 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-  },
-  likeHeartOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 50,
-  },
-  likeHeartIcon: {
-    textShadowColor: 'rgba(0, 0, 0, 0.35)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 12,
   },
   previewMenuBackdrop: {
     flex: 1,

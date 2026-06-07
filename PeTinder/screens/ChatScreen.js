@@ -90,6 +90,28 @@ const ChatScreen = ({ navigation }) => {
   const shouldRefresh = Boolean(route.params?.shouldRefresh);
   const routeToastMessage = String(route.params?.toastMessage || '');
   const routeToastType = route.params?.toastType === 'error' ? 'error' : 'success';
+  const adoptedPetName = route.params?.adoptedPetName || '';
+
+  // Dica contextual: quando o usuário chega via "adotar", mostra um toast suave
+  // orientando-o a tocar na conversa. Aparece só nessa entrada e se auto-desfaz.
+  useEffect(() => {
+    if (!adoptedPetName) {
+      return;
+    }
+
+    const petLabel = adoptedPetName.trim();
+    setToast({
+      visible: true,
+      type: 'success',
+      message: petLabel
+        ? `Toque na conversa para falar sobre ${petLabel} 🐾`
+        : 'Toque na conversa para falar com a ONG 🐾',
+    });
+
+    // Limpa o param para não reaparecer ao voltar/focar a tela novamente.
+    navigation.setParams({ adoptedPetName: undefined });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adoptedPetName]);
 
   useEffect(() => {
     setIsLoading(!(isPetsLoaded && isChatsLoaded));
