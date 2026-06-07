@@ -421,7 +421,6 @@ const PeTinderScreen = ({ navigation, route }) => {
         status: 'LIKED',
       };
 
-      console.log('Enviando like para API:', body);
 
       await api.post('/status', {
         petId: selectedPet.id,

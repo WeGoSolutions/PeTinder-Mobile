@@ -91,7 +91,7 @@ const PetExpandedOverlay = ({
 
   useEffect(() => {
     visibleRef.current = visible;
-    console.log(pet)
+    // console.log(pet)
   }, [visible]);
 
   useEffect(() => {
